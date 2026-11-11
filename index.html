@@ -1,0 +1,1442 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+</head><body style="margin:0">
+<title>Taller PDF</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: tool strip on top, page list on the left, a grey "desk" where pages sit like paper; a status line at the bottom. */
+:root {
+  --bg: #eceef2;
+  --panel: #ffffff;
+  --line: #d4d8df;
+  --fg: #1b1f27;
+  --muted: #5b6372;
+  --accent: #b4232c;
+  --accent-soft: #f6e3e4;
+  --accent-fg: #ffffff;
+  --desk: #d9dce2;
+  --hover: #f1f3f6;
+  --shadow: 0 1px 2px rgba(20,24,33,.12), 0 4px 14px rgba(20,24,33,.10);
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171c; --panel: #1d2027; --line: #2f343e; --fg: #e6e8ec; --muted: #9aa1ad;
+    --accent: #f0656b; --accent-soft: #3a2124; --accent-fg: #1b0b0c; --desk: #0e1014; --hover: #262a33;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171c; --panel: #1d2027; --line: #2f343e; --fg: #e6e8ec; --muted: #9aa1ad;
+  --accent: #f0656b; --accent-soft: #3a2124; --accent-fg: #1b0b0c; --desk: #0e1014; --hover: #262a33;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.45);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 14px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* top bar */
+.top {
+  display: flex; align-items: center; gap: 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  min-width: 0;
+}
+.brand { font-weight: 600; letter-spacing: -.01em; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.brand svg { color: var(--accent); }
+.bar { display: flex; align-items: center; gap: 4px; overflow-x: auto; min-width: 0; flex: 1; scrollbar-width: thin; padding-block: 2px; }
+.sep { width: 1px; height: 24px; background: var(--line); margin-inline: 6px; flex: none; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding-inline: 10px; border-radius: 6px;
+  border: 1px solid transparent; background: transparent; white-space: nowrap; flex: none;
+}
+.btn:hover { background: var(--hover); }
+.btn:disabled { opacity: .4; cursor: default; background: transparent; }
+.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn.on { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); font-weight: 500; }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent) 88%, var(--fg)); }
+.btn.ghost { border-color: var(--line); }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.zoomv { font-family: var(--mono); font-size: 12px; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* props row */
+.props {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-height: 44px; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.props .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.props .grp { display: flex; align-items: center; gap: 8px; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--line); padding: 0; }
+.sw.on { box-shadow: 0 0 0 2px var(--fg); }
+.cpick { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px; padding: 0; background: none; }
+.props input[type=range] { width: 120px; accent-color: var(--accent); }
+.props .val { font-family: var(--mono); font-size: 12px; min-width: 52px; font-variant-numeric: tabular-nums; }
+.hint { color: var(--muted); font-size: 13px; }
+
+/* main */
+.main { flex: 1; display: flex; min-height: 0; position: relative; }
+.side {
+  width: 176px; flex: none; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px; padding: 14px 12px;
+}
+.thumb { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.thumb .tc {
+  border: 2px solid transparent; border-radius: 4px; padding: 0; background: transparent; line-height: 0;
+}
+.thumb .tc canvas { box-shadow: var(--shadow); background: #fff; display: block; max-width: 140px; }
+.thumb.cur .tc { border-color: var(--accent); }
+.thumb .row { display: flex; align-items: center; gap: 2px; }
+.thumb .n { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 22px; text-align: center; }
+.mini { width: 26px; height: 26px; border-radius: 5px; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.mini:hover { background: var(--hover); color: var(--fg); }
+.mini:disabled { opacity: .3; background: transparent; cursor: default; }
+.mini svg { width: 15px; height: 15px; }
+.side .add { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.side .add .btn { justify-content: flex-start; font-size: 13px; }
+
+.desk { flex: 1; overflow: auto; background: var(--desk); position: relative; min-width: 0; }
+.pages { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 24px 24px 64px; min-width: max-content; }
+.page { position: relative; background: #fff; box-shadow: var(--shadow); flex: none; }
+.page canvas.pc { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.page svg.ov { position: absolute; inset: 0; overflow: visible; }
+.page .pnum { position: absolute; left: 100%; top: 0; margin-left: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.ov .a { cursor: inherit; }
+.ov .hl { mix-blend-mode: multiply; }
+.ov .selbox { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; pointer-events: none; }
+.t-select .ov [data-aid] { cursor: move; }
+.t-text .ov { cursor: text; }
+.ov .cand { fill: transparent; stroke: color-mix(in srgb, var(--accent) 45%, transparent); stroke-width: 1; stroke-dasharray: 3 3; cursor: text; }
+.ov .cand:hover { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); stroke-dasharray: none; }
+.t-edit .ov [data-orig] { cursor: text; }
+.t-edit .ov [data-aid]:not([data-orig]), .t-edit .ov [data-aid]:not([data-orig]) * { pointer-events: none; }
+textarea.ed.ghost { color: transparent !important; caret-color: var(--accent); background: transparent; }
+.fontchip { font-family: var(--mono); font-size: 12px; padding: 3px 8px; border-radius: 4px; background: var(--hover); border: 1px solid var(--line); }
+.warn { font-size: 12px; color: var(--muted); max-width: 46ch; }
+.t-pen .ov, .t-hl .ov, .t-rect .ov, .t-white .ov { cursor: crosshair; }
+textarea.ed {
+  position: absolute; margin: 0; padding: 0; border: 1px dashed var(--accent); background: rgba(255,255,255,.85);
+  font-family: Helvetica, Arial, sans-serif; resize: none; overflow: hidden; outline: none; white-space: pre; z-index: 5;
+}
+
+.drop {
+  position: absolute; inset: 12px; border: 2px dashed var(--accent); border-radius: 12px; background: color-mix(in srgb, var(--accent-soft) 80%, transparent);
+  display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; color: var(--accent); pointer-events: none; z-index: 20;
+}
+
+.status {
+  display: flex; gap: 16px; align-items: center; background: var(--panel); border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+  padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  white-space: nowrap; overflow: hidden;
+}
+.status .file { color: var(--fg); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13px; z-index: 50; box-shadow: var(--shadow);
+  max-width: calc(100% - 32px);
+}
+.dlbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10,12,16,.45); }
+.dlbox[hidden] { display: none; }
+.dlcard { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; width: 100%; max-width: 380px; }
+.dlcard h2 { margin: 0 0 6px; font-size: 16px; }
+.dlcard p { margin: 0 0 16px; font-size: 13px; color: var(--muted); line-height: 1.45; word-break: break-word; }
+.dlcard .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.dlcard a.btn { text-decoration: none; }
+.dlcard .close { margin-top: 12px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; padding: 4px 0; }
+.loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.pagesbtn { display: none; }
+
+@media (max-width: 760px) {
+  .brand span { display: none; }
+  .side { position: absolute; z-index: 15; top: 0; bottom: 0; left: 0; box-shadow: var(--shadow); }
+  .side:not(.open) { display: none; }
+  .pagesbtn { display: inline-flex; }
+  .pages { padding: 16px 16px 64px; }
+  .status .opt { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<header class="top">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 2.8h8.5L19 7.3V21.2H6z"/><path d="M14.5 2.8v4.5H19"/><path d="M9 16.5l5.5-5.5 1.6 1.6-5.5 5.5H9z" fill="currentColor" stroke="none"/></svg>
+    <span>Taller PDF</span>
+  </div>
+  <div class="bar" id="bar">
+    <button class="btn icon pagesbtn" id="bPages" title="Páginas" aria-label="Mostrar páginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="7" height="8" rx="1"/><rect x="13" y="3" width="7" height="8" rx="1"/><rect x="4" y="13" width="7" height="8" rx="1"/><rect x="13" y="13" width="7" height="8" rx="1"/></svg></button>
+    <button class="btn ghost" id="bOpen" title="Abrir un PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7.5V19h18V9H11.5L9.5 6.5H3z"/></svg>Abrir</button>
+    <div class="sep"></div>
+    <button class="btn icon tool" data-tool="select" title="Seleccionar y mover (V)" aria-label="Seleccionar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 3.5l13 7.2-5.8 1.4 3.3 6-2.4 1.3-3.3-6L5.6 17z"/></svg></button>
+    <button class="btn tool" data-tool="edit" title="Editar el texto del PDF (E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18L8 6l4.5 12M5.2 14h5.6"/><path d="M14 20l.6-3 5-5 2.4 2.4-5 5z"/></svg>Editar texto</button>
+    <button class="btn icon tool" data-tool="text" title="Agregar texto nuevo (T)" aria-label="Texto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6V4.5h14V6M12 4.5v15M9 19.5h6"/></svg></button>
+    <button class="btn icon tool" data-tool="pen" title="Dibujar / firmar (P)" aria-label="Dibujar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z"/><path d="M13.5 7l3 3"/></svg></button>
+    <button class="btn icon tool" data-tool="hl" title="Resaltar (H)" aria-label="Resaltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 14l-2.5 2.5V19h2.5L11.5 16.5"/><path d="M9 14l7.5-9.5 3 3L11.5 16.5z"/><path d="M3 21.5h18" stroke-width="2.4" opacity=".55"/></svg></button>
+    <button class="btn icon tool" data-tool="rect" title="Rectángulo (R)" aria-label="Rectángulo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="6" width="16" height="12" rx="1"/></svg></button>
+    <button class="btn icon tool" data-tool="white" title="Tapar con blanco (W)" aria-label="Tapar con blanco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h16M4 12h10M4 16h16" opacity=".45"/><rect x="9" y="9.5" width="11" height="5" rx="1" fill="var(--panel)"/></svg></button>
+    <button class="btn icon" id="bImg" title="Insertar imagen (I)" aria-label="Insertar imagen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><circle cx="9" cy="9.5" r="1.6"/><path d="M4 18l5.5-5 4 3.5 2.5-2 4 3.5"/></svg></button>
+    <div class="sep"></div>
+    <button class="btn icon" id="bUndo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4.5 11.5 9 16"/><path d="M5 11.5h9.5a5 5 0 010 10H12"/></svg></button>
+    <button class="btn icon" id="bRedo" title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5H9.5a5 5 0 000 10H12"/></svg></button>
+    <div class="sep"></div>
+    <button class="btn icon" id="bZo" title="Alejar" aria-label="Alejar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"/></svg></button>
+    <button class="btn zoomv" id="bFit" title="Ajustar al ancho">100 %</button>
+    <button class="btn icon" id="bZi" title="Acercar" aria-label="Acercar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 12h12M12 6v12"/></svg></button>
+  </div>
+  <button class="btn primary" id="bSave" title="Descargar el PDF editado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/></svg>Descargar</button>
+</header>
+
+<div class="props" id="props"></div>
+
+<div class="main">
+  <aside class="side" id="side">
+    <div id="thumbs" style="display:flex;flex-direction:column;gap:14px"></div>
+    <div class="add">
+      <button class="btn ghost" id="bBlank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M12 9v6M9 12h6"/></svg>Página en blanco</button>
+      <button class="btn ghost" id="bMerge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 3h9l3 3v12H8z"/><path d="M4 7v14h11"/></svg>Añadir otro PDF</button>
+    </div>
+  </aside>
+  <section class="desk" id="desk">
+    <div class="pages" id="pages"></div>
+    <div class="loading" id="loading">Preparando documento…</div>
+    <div class="drop" id="drop" hidden>Soltá un PDF para abrirlo o una imagen para insertarla</div>
+  </section>
+</div>
+
+<footer class="status">
+  <span class="file" id="sFile">—</span>
+  <span id="sPage">—</span>
+  <span class="opt" id="sSize">—</span>
+</footer>
+
+<div class="toast" id="toast" hidden></div>
+<div class="dlbox" id="dlBox" hidden role="dialog" aria-modal="true" aria-labelledby="dlTitle">
+  <div class="dlcard">
+    <h2 id="dlTitle">Tu PDF está listo</h2>
+    <p id="dlName"></p>
+    <div class="row">
+      <a class="btn primary" id="dlLink">Guardar PDF</a>
+      <a class="btn" id="dlOpen" target="_blank" rel="noopener">Abrir en otra pestaña</a>
+    </div>
+    <button class="close" id="dlClose">Cerrar</button>
+  </div>
+</div>
+<input type="file" id="fOpen" accept="application/pdf,.pdf" hidden>
+<input type="file" id="fMerge" accept="application/pdf,.pdf" hidden>
+<input type="file" id="fImg" accept="image/*" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+<script>
+(() => {
+'use strict';
+const { PDFDocument, rgb, degrees, StandardFonts, BlendMode, LineCapStyle, PDFName, PDFArray, PDFRawStream, decodePDFRawStream } = PDFLib;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+let uid = 1;
+const nid = () => 'a' + (uid++) + Math.random().toString(36).slice(2, 6);
+
+const S = {
+  sources: [], proxies: {}, pages: [], imgs: {},
+  tool: 'select',
+  colors: { text: '#1b1f27', pen: '#1f3fa8', hl: '#ffd43b', rect: '#b4232c' },
+  fontSize: 14, stroke: 2.5,
+  zoom: 'fit', scale: 1,
+  sel: null, name: 'propuesta-ejemplo.pdf',
+  undo: [], redo: [], cur: 0
+};
+const RT = {};
+const SWATCHES = ['#1b1f27', '#b4232c', '#1f3fa8', '#17803d', '#ffd43b', '#ff8fc7', '#7cd3ff'];
+
+/* ---------- helpers ---------- */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rotOf = p => (p.base + p.rot) % 360;
+const proxy = p => S.proxies[p.src + ':' + p.idx];
+const viewport = (p, scale) => proxy(p).getViewport({ scale, rotation: rotOf(p) });
+const pageById = id => S.pages.find(p => p.id === id);
+const snap = () => JSON.stringify(S.pages);
+function mk(tag, attrs) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+let toastT;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2800); }
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
+function readFile(file, as) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; as === 'url' ? r.readAsDataURL(file) : r.readAsArrayBuffer(file); }); }
+function loadImg(url) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; }); }
+function dataUrlBytes(u) { const b = atob(u.split(',')[1]); const a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+
+/* ---------- history ---------- */
+function commit(before) { S.undo.push(before); if (S.undo.length > 100) S.undo.shift(); S.redo = []; updateButtons(); }
+function undo() { if (!S.undo.length) return; commitEditor(); S.redo.push(snap()); S.pages = JSON.parse(S.undo.pop()); S.sel = null; renderAll(); }
+function redo() { if (!S.redo.length) return; commitEditor(); S.undo.push(snap()); S.pages = JSON.parse(S.redo.pop()); S.sel = null; renderAll(); }
+
+/* ---------- loading documents ---------- */
+async function addSource(bytes) {
+  const doc = await pdfjsLib.getDocument({ data: bytes.slice(), isEvalSupported: false, useSystemFonts: true, fontExtraProperties: true }).promise;
+  const src = S.sources.length;
+  S.sources.push({ bytes, doc });
+  const out = [];
+  for (let i = 0; i < doc.numPages; i++) {
+    const pg = await doc.getPage(i + 1);
+    S.proxies[src + ':' + i] = pg;
+    out.push({ id: nid(), src, idx: i, base: pg.rotate || 0, rot: 0, annots: [] });
+  }
+  return out;
+}
+async function openBytes(bytes, name) {
+  commitEditor();
+  let pages;
+  const prev = { sources: S.sources, proxies: S.proxies };
+  S.sources = []; S.proxies = {}; resetCaches();
+  try { pages = await addSource(bytes); }
+  catch (e) {
+    S.sources = prev.sources; S.proxies = prev.proxies;
+    toast(e && e.name === 'PasswordException' ? 'Ese PDF está protegido con contraseña.' : 'No se pudo abrir el archivo. Verificá que sea un PDF válido.');
+    return false;
+  }
+  prev.sources.forEach(s => { try { s.doc.destroy(); } catch (_) {} });
+  for (const id in RT) { RT[id].wrap.remove(); delete RT[id]; }
+  S.pages = pages; S.undo = []; S.redo = []; S.sel = null; S.name = name; S.zoom = 'fit'; S.cur = 0;
+  $('#desk').scrollTop = 0;
+  renderAll();
+  return true;
+}
+async function mergeBytes(bytes) {
+  try {
+    const pages = await addSource(bytes);
+    const before = snap();
+    S.pages.push(...pages); commit(before); renderAll();
+    toast(`Se agregaron ${pages.length} página${pages.length === 1 ? '' : 's'} al final.`);
+  } catch (e) { toast('No se pudo leer ese PDF.'); }
+}
+async function insertBlank() {
+  const ref = S.pages[S.cur];
+  let size = [595.28, 841.89];
+  if (ref) { const v = proxy(ref).getViewport({ scale: 1, rotation: 0 }); size = [v.width, v.height]; }
+  const d = await PDFDocument.create(); d.addPage(size);
+  const [p] = await addSource(await d.save());
+  const before = snap();
+  S.pages.splice(S.cur + 1, 0, p); commit(before); renderAll();
+  setTimeout(() => scrollToPage(S.cur + 1), 50);
+}
+
+/* ---------- existing text: items, fonts and content-stream ops ---------- */
+const TXT = {}, TXR = {}, FONTS = {}, FONTR = {}, LIBDOC = {}, OPS = {};
+function resetCaches() { for (const o of [TXT, TXR, FONTS, FONTR, LIBDOC, OPS]) for (const k in o) delete o[k]; }
+const pkey = p => p.src + ':' + p.idx;
+function textItems(p) {
+  const k = pkey(p);
+  if (!TXT[k]) TXT[k] = proxy(p).getTextContent().then(tc => {
+    const items = [];
+    tc.items.forEach((it, i) => {
+      if (!it.str || !it.str.trim() || !it.transform) return;
+      const [a, b, c, d, e, f] = it.transform; const L = Math.hypot(a, b) || 1;
+      items.push({ i, str: it.str, font: it.fontName, o: [e, f], dir: [a / L, b / L], w: it.width, h: it.height || Math.hypot(c, d) });
+    });
+    return TXR[k] = items;
+  }).catch(() => TXR[k] = []);
+  return TXT[k];
+}
+const STD_SETS = {
+  Helvetica: ['Helvetica', 'HelveticaBold', 'HelveticaOblique', 'HelveticaBoldOblique'],
+  Times: ['TimesRoman', 'TimesRomanBold', 'TimesRomanItalic', 'TimesRomanBoldItalic'],
+  Courier: ['Courier', 'CourierBold', 'CourierOblique', 'CourierBoldOblique']
+};
+function stdFor(name, fo) {
+  const bold = !!(fo && (fo.bold || fo.black)) || /bold|black|heavy|semibold|demi/i.test(name);
+  const italic = !!(fo && fo.italic) || /italic|oblique/i.test(name);
+  const mono = !!(fo && fo.isMonospace) || /courier|mono|consol/i.test(name);
+  const serif = !mono && !/sans|arial|helv|calibri|verdana|tahoma|segoe/i.test(name) && (!!(fo && fo.isSerifFont) || /times|serif|georgia|garamond|cambria|minion|book|roman|palatino|baskerville/i.test(name));
+  const fam = mono ? 'Courier' : serif ? 'Times' : 'Helvetica';
+  return {
+    fam, bold, italic, std: STD_SETS[fam][(bold ? 1 : 0) + (italic ? 2 : 0)],
+    css: mono ? '"Courier New", Courier, monospace' : serif ? '"Times New Roman", Times, serif' : 'Helvetica, Arial, sans-serif'
+  };
+}
+const STDW = (async () => {
+  const d = await PDFDocument.create(); const o = {};
+  for (const k of Object.values(STD_SETS).flat()) o[k] = await d.embedFont(StandardFonts[k]);
+  return o;
+})();
+const WIN = { 128: '€', 130: '‚', 131: 'ƒ', 132: '„', 133: '…', 134: '†', 135: '‡', 136: 'ˆ', 137: '‰', 138: 'Š', 139: '‹', 140: 'Œ', 142: 'Ž', 145: '‘', 146: '’', 147: '“', 148: '”', 149: '•', 150: '–', 151: '—', 152: '˜', 153: '™', 154: 'š', 155: '›', 156: 'œ', 158: 'ž', 159: 'Ÿ' };
+
+// Font used by a text item: the subset embedded in the PDF (via pdf.js), plus a matching standard font for missing glyphs
+function ensureFont(p, name) { const key = p.src + ':' + name; return FONTS[key] || (FONTS[key] = buildFont(p, name, key)); }
+async function buildFont(p, name, key) {
+  const px = proxy(p);
+  if (!px.commonObjs.has(name)) { try { await px.getOperatorList(); } catch (_) {} }
+  let fo = null; try { fo = px.commonObjs.get(name); } catch (_) {}
+  const clean = ((fo && fo.name) || 'Sin nombre').replace(/^[A-Z]{6}\+/, '');
+  const sf = stdFor(clean, fo);
+  const info = { key, name: clean, std: sf.std, stdFam: sf.fam, css: sf.css, weight: sf.bold ? 700 : 400, style: sf.italic ? 'italic' : 'normal', map: null, family: null, data: null };
+  if (fo && fo.data && !fo.missingFile && !fo.isType3Font && window.fontkit) {
+    try {
+      const data = fo.data instanceof Uint8Array ? fo.data : new Uint8Array(fo.data);
+      const fk = fontkit.create(data);
+      const map = new Map(), tfc = fo.toFontChar || {}, tu = fo.toUnicode || {};
+      for (const c in tfc) {
+        const fc = tfc[c]; if (typeof fc !== 'number') continue;
+        const u = tu._map ? tu._map[c] : ('firstChar' in tu ? String.fromCharCode(+c) : null);
+        if (typeof u !== 'string' || [...u].length !== 1 || map.has(u)) continue;
+        const g = fk.glyphForCodePoint(fc); if (!g || !g.id) continue;
+        map.set(u, String.fromCodePoint(fc));
+      }
+      if (map.size) {
+        const family = 'tpf_' + Math.random().toString(36).slice(2, 8);
+        const ff = new FontFace(family, data); await ff.load(); document.fonts.add(ff);
+        Object.assign(info, { map, family, data });
+      }
+    } catch (e) { console.warn('No se pudo usar la fuente incrustada', clean, e); }
+  }
+  return FONTR[key] = info;
+}
+function segs(info, line) {
+  const out = [];
+  for (const ch of line) {
+    const fc = info && info.map ? info.map.get(ch) : null;
+    const emb = !!fc, last = out[out.length - 1];
+    if (last && last.emb === emb) { last.s += emb ? fc : ch; last.raw += ch; }
+    else out.push({ emb, s: emb ? fc : ch, raw: ch });
+  }
+  return out;
+}
+
+// Content stream analysis: where every text-showing operator starts and ends in user space
+const libDoc = src => LIBDOC[src] || (LIBDOC[src] = PDFDocument.load(S.sources[src].bytes, { ignoreEncryption: true }));
+function pageOps(p) {
+  const k = pkey(p);
+  return OPS[k] || (OPS[k] = (async () => {
+    try { await STDW; const d = await libDoc(p.src); return analyze(d, d.getPage(p.idx), await STDW); }
+    catch (e) { console.warn('Contenido no analizable', e); return null; }
+  })());
+}
+const mul = (m, n) => [m[0] * n[0] + m[1] * n[2], m[0] * n[1] + m[1] * n[3], m[2] * n[0] + m[3] * n[2], m[2] * n[1] + m[3] * n[3], m[4] * n[0] + m[5] * n[2] + n[4], m[4] * n[1] + m[5] * n[3] + n[5]];
+const apply = (m, q) => [q[0] * m[0] + q[1] * m[2] + m[4], q[0] * m[1] + q[1] * m[3] + m[5]];
+function contentBytes(doc, node) {
+  const ctx = doc.context; const c = ctx.lookup(node.get(PDFName.of('Contents')));
+  const list = !c ? [] : c instanceof PDFArray ? c.asArray().map(r => ctx.lookup(r)) : [c];
+  const parts = list.filter(Boolean).map(s => s instanceof PDFRawStream ? decodePDFRawStream(s).decode() : (s.getUnencodedContents ? s.getUnencodedContents() : s.getContents()));
+  const len = parts.reduce((a, b) => a + b.length + 1, 0); const out = new Uint8Array(len); let o = 0;
+  for (const part of parts) { out.set(part, o); o += part.length; out[o++] = 10; }
+  return out;
+}
+function fontMetrics(doc, page, name, cache, std) {
+  if (cache[name]) return cache[name];
+  const ctx = doc.context; let m = { two: false, w: () => 0.5 };
+  const num = o => { o = ctx.lookup(o); return o && o.asNumber ? o.asNumber() : 0; };
+  try {
+    const res = page.node.Resources(); const fd = res && res.lookup(PDFName.of('Font'));
+    const f = fd && fd.lookup(PDFName.of(name));
+    if (f) {
+      const sub = String(f.lookup(PDFName.of('Subtype')) || '');
+      if (sub === '/Type0') {
+        const desc = ctx.lookup(f.lookup(PDFName.of('DescendantFonts')).get(0));
+        const dw = desc.has(PDFName.of('DW')) ? num(desc.get(PDFName.of('DW'))) : 1000;
+        const W = desc.lookup(PDFName.of('W')); const map = new Map();
+        if (W) {
+          const arr = W.asArray();
+          for (let i = 0; i < arr.length;) {
+            const c1 = num(arr[i]); const nx = ctx.lookup(arr[i + 1]);
+            if (nx instanceof PDFArray) { nx.asArray().forEach((x, j) => map.set(c1 + j, num(x))); i += 2; }
+            else { const c2 = num(nx), w = num(arr[i + 2]); for (let c = c1; c <= c2 && c - c1 < 65536; c++) map.set(c, w); i += 3; }
+          }
+        }
+        m = { two: true, w: c => (map.has(c) ? map.get(c) : dw) / 1000 };
+      } else {
+        const Wd = f.lookup(PDFName.of('Widths'));
+        let scale = 0.001;
+        if (sub === '/Type3') { const fm = f.lookup(PDFName.of('FontMatrix')); if (fm) scale = num(fm.get(0)); }
+        if (Wd) {
+          const fc = num(f.get(PDFName.of('FirstChar'))); const arr = Wd.asArray().map(num);
+          const fdsc = f.lookup(PDFName.of('FontDescriptor'));
+          const mw = fdsc && fdsc.has(PDFName.of('MissingWidth')) ? num(fdsc.get(PDFName.of('MissingWidth'))) : 0;
+          m = { two: false, w: c => { const v = arr[c - fc]; return (v === undefined ? mw : v) * scale; } };
+        } else {
+          const base = String(f.lookup(PDFName.of('BaseFont')) || '/Helvetica').slice(1).replace(/^[A-Z]{6}\+/, '');
+          const sfont = std[stdFor(base).std];
+          m = { two: false, w: c => { try { return sfont.widthOfTextAtSize(WIN[c] || String.fromCharCode(c), 1000) / 1000; } catch (_) { return 0.5; } } };
+        }
+      }
+    }
+  } catch (e) { console.warn('Métricas de fuente', name, e); }
+  return cache[name] = m;
+}
+const WS = new Set([0, 9, 10, 12, 13, 32]), DELIM = new Set([40, 41, 60, 62, 91, 93, 123, 125, 47, 37]);
+function skipLiteral(b, i) { let depth = 0; for (; i < b.length; i++) { const c = b[i]; if (c === 92) { i++; continue; } if (c === 40) depth++; else if (c === 41 && --depth === 0) return i + 1; } return i; }
+function tokenize(b, onOp) {
+  let i = 0; const n = b.length; let ops = [];
+  while (i < n) {
+    const c = b[i];
+    if (WS.has(c)) { i++; continue; }
+    if (c === 37) { while (i < n && b[i] !== 10 && b[i] !== 13) i++; continue; }
+    const st = i;
+    if (c === 40) {
+      i++; let depth = 1; const out = [];
+      while (i < n) {
+        let ch = b[i];
+        if (ch === 92) {
+          i++; ch = b[i];
+          const esc = { 110: 10, 114: 13, 116: 9, 98: 8, 102: 12 };
+          if (esc[ch] !== undefined) { out.push(esc[ch]); i++; }
+          else if (ch >= 48 && ch <= 55) { let v = 0, k = 0; while (k < 3 && b[i] >= 48 && b[i] <= 55) { v = v * 8 + b[i] - 48; i++; k++; } out.push(v & 255); }
+          else if (ch === 13) { i++; if (b[i] === 10) i++; }
+          else if (ch === 10) i++;
+          else { out.push(ch); i++; }
+          continue;
+        }
+        if (ch === 40) depth++;
+        else if (ch === 41 && --depth === 0) { i++; break; }
+        out.push(ch); i++;
+      }
+      ops.push({ t: 's', v: out, st }); continue;
+    }
+    if (c === 60) {
+      if (b[i + 1] === 60) {
+        let depth = 0;
+        while (i < n) {
+          if (b[i] === 60 && b[i + 1] === 60) { depth++; i += 2; continue; }
+          if (b[i] === 62 && b[i + 1] === 62) { depth--; i += 2; if (!depth) break; continue; }
+          if (b[i] === 40) { i = skipLiteral(b, i); continue; }
+          i++;
+        }
+        ops.push({ t: 'd', st }); continue;
+      }
+      i++; let hex = '';
+      while (i < n && b[i] !== 62) { if (!WS.has(b[i])) hex += String.fromCharCode(b[i]); i++; }
+      i++; if (hex.length % 2) hex += '0';
+      const out = []; for (let k = 0; k < hex.length; k += 2) out.push(parseInt(hex.substr(k, 2), 16));
+      ops.push({ t: 's', v: out, st }); continue;
+    }
+    if (c === 91) { i++; ops.push({ t: '[', st }); continue; }
+    if (c === 93) {
+      i++; let k = ops.length - 1; while (k >= 0 && ops[k].t !== '[') k--;
+      if (k >= 0) { const items = ops.splice(k); ops.push({ t: 'a', v: items.slice(1), st: items[0].st }); }
+      continue;
+    }
+    if (c === 47) { i++; let s = ''; while (i < n && !WS.has(b[i]) && !DELIM.has(b[i])) { s += String.fromCharCode(b[i]); i++; } ops.push({ t: 'n', v: s, st }); continue; }
+    if (c === 123 || c === 125 || c === 41 || c === 62) { i++; continue; }
+    let s = ''; while (i < n && !WS.has(b[i]) && !DELIM.has(b[i])) { s += String.fromCharCode(b[i]); i++; }
+    if (/^[+\-]?(\d+\.?\d*|\.\d+)$/.test(s)) { ops.push({ t: '#', v: parseFloat(s), st }); continue; }
+    if (s === 'true' || s === 'false' || s === 'null') { ops.push({ t: 'k', st }); continue; }
+    if (s === 'BI') {
+      let j = i;
+      while (j < n - 1) { if (b[j] === 73 && b[j + 1] === 68 && WS.has(b[j - 1]) && (WS.has(b[j + 2]) || j + 2 >= n)) { j += 3; break; } j++; }
+      while (j < n - 1) { if (b[j] === 69 && b[j + 1] === 73 && WS.has(b[j - 1]) && (j + 2 >= n || WS.has(b[j + 2]) || DELIM.has(b[j + 2]))) { j += 2; break; } j++; }
+      i = j; ops = []; continue;
+    }
+    onOp(s, ops, ops.length ? ops[0].st : st, i);
+    ops = [];
+  }
+}
+function analyze(doc, page, std) {
+  const bytes = contentBytes(doc, page.node);
+  const fcache = {}, ops = [], stack = [];
+  let G = { ctm: [1, 0, 0, 1, 0, 0], tr: 0, fs: 0, font: null, tc: 0, tw: 0, th: 1, tl: 0, rise: 0 };
+  let tm = [1, 0, 0, 1, 0, 0], tlm = tm.slice();
+  const strAdv = arr => {
+    const m = fontMetrics(doc, page, G.font, fcache, std); let adv = 0;
+    if (m.two) for (let k = 0; k + 1 < arr.length; k += 2) adv += m.w((arr[k] << 8) | arr[k + 1]) * G.fs + G.tc;
+    else for (const code of arr) adv += m.w(code) * G.fs + G.tc + (code === 32 ? G.tw : 0);
+    return adv * G.th;
+  };
+  const adv = tx => { tm = mul([1, 0, 0, 1, tx, 0], tm); };
+  const show = (o, at, end, kind) => {
+    const M = mul(tm, G.ctm); const s = apply(M, [0, G.rise]);
+    if (kind === 'TJ') { const arr = o[o.length - 1]; for (const el of (arr && arr.v) || []) { if (el.t === 's') adv(strAdv(el.v)); else if (el.t === '#') adv(-el.v / 1000 * G.fs * G.th); } }
+    else { const sv = o[o.length - 1]; if (sv && sv.t === 's') adv(strAdv(sv.v)); }
+    const e = apply(mul(tm, G.ctm), [0, G.rise]);
+    ops.push({ s, e, h: Math.abs(G.fs) * Math.hypot(M[2], M[3]), at, end, tr: G.tr });
+  };
+  const newLine = (tx, ty) => { tlm = mul([1, 0, 0, 1, tx, ty], tlm); tm = tlm.slice(); };
+  tokenize(bytes, (op, o, at, end) => {
+    const num = k => (o[k] && o[k].t === '#') ? o[k].v : 0;
+    switch (op) {
+      case 'q': stack.push({ ...G, ctm: G.ctm.slice() }); break;
+      case 'Q': if (stack.length) G = stack.pop(); break;
+      case 'cm': if (o.length >= 6) G.ctm = mul(o.slice(-6).map(x => x.v || 0), G.ctm); break;
+      case 'BT': tm = [1, 0, 0, 1, 0, 0]; tlm = tm.slice(); break;
+      case 'Tf': G.font = o[0] && o[0].v; G.fs = num(1); break;
+      case 'Tr': G.tr = num(0); break;
+      case 'Tc': G.tc = num(0); break;
+      case 'Tw': G.tw = num(0); break;
+      case 'Tz': G.th = num(0) / 100; break;
+      case 'TL': G.tl = num(0); break;
+      case 'Ts': G.rise = num(0); break;
+      case 'Td': newLine(num(0), num(1)); break;
+      case 'TD': G.tl = -num(1); newLine(num(0), num(1)); break;
+      case 'Tm': if (o.length >= 6) { tlm = o.slice(-6).map(x => x.v || 0); tm = tlm.slice(); } break;
+      case 'T*': newLine(0, -G.tl); break;
+      case 'Tj': show(o, at, end, 'Tj'); break;
+      case 'TJ': show(o, at, end, 'TJ'); break;
+      case "'": newLine(0, -G.tl); show(o, at, end, 'Tj'); break;
+      case '"': G.tw = num(0); G.tc = num(1); newLine(0, -G.tl); show(o, at, end, 'Tj'); break;
+    }
+  });
+  return { bytes, ops };
+}
+function hideOps(bytes, list) {
+  const ins = [];
+  const seen = new Set();
+  for (const op of list) {
+    if (seen.has(op.at)) continue; seen.add(op.at);
+    ins.push({ pos: op.at, k: 1, s: ` ${op.tr >= 4 ? 7 : 3} Tr ` }, { pos: op.end, k: 0, s: ` ${op.tr} Tr ` });
+  }
+  ins.sort((a, b) => a.pos - b.pos || a.k - b.k);
+  const enc = new TextEncoder(); const chunks = []; let last = 0;
+  for (const x of ins) { chunks.push(bytes.subarray(last, x.pos), enc.encode(x.s)); last = x.pos; }
+  chunks.push(bytes.subarray(last));
+  const out = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0)); let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+
+// A clicked text item grows into a block that matches whole text operators, so what gets hidden is exactly what is edited
+const frameOf = (o, dir) => q => { const dx = q[0] - o[0], dy = q[1] - o[1]; return [dx * dir[0] + dy * dir[1], -dx * dir[1] + dy * dir[0]]; };
+function usedOn(p) {
+  const items = new Set(), ops = new Set();
+  for (const a of p.annots) if (a.orig) { a.orig.items.forEach(i => items.add(i)); a.orig.ops.forEach(o => ops.add(o.at)); }
+  return { items, ops };
+}
+async function buildBlock(p, it) {
+  const items = TXR[pkey(p)] || await textItems(p);
+  const an = await pageOps(p);
+  const F = frameOf(it.o, it.dir), h = it.h, used = usedOn(p);
+  const onLine = q => Math.abs(F(q)[1]) < 0.35 * h;
+  let lo = 0, hi = it.w; const chosen = new Set([it.i]), opsSel = new Map();
+  for (let iter = 0; iter < 5; iter++) {
+    let changed = false;
+    if (an) an.ops.forEach(op => {
+      if (opsSel.has(op.at) || used.ops.has(op.at) || !onLine(op.s) || Math.abs(op.h - h) > 0.35 * h) return;
+      const a = F(op.s)[0], b = F(op.e)[0], s0 = Math.min(a, b), s1 = Math.max(a, b), len = s1 - s0;
+      const ov = Math.min(s1, hi) - Math.max(s0, lo);
+      if (ov > Math.min(Math.max(len, 0.5), hi - lo) * 0.3) { opsSel.set(op.at, op); lo = Math.min(lo, s0); hi = Math.max(hi, s1); changed = true; }
+    });
+    items.forEach(o => {
+      if (chosen.has(o.i) || used.items.has(o.i) || Math.abs(o.dir[0] - it.dir[0]) > 0.02 || Math.abs(o.dir[1] - it.dir[1]) > 0.02 || !onLine(o.o)) return;
+      const s0 = F(o.o)[0], s1 = s0 + o.w, ov = Math.min(s1, hi) - Math.max(s0, lo);
+      if (ov > Math.min(o.w, hi - lo) * 0.3) { chosen.add(o.i); lo = Math.min(lo, s0); hi = Math.max(hi, s1); changed = true; }
+    });
+    if (!changed) break;
+  }
+  const parts = items.filter(o => chosen.has(o.i)).sort((a, b) => F(a.o)[0] - F(b.o)[0]);
+  let text = '', prevEnd = null;
+  for (const o of parts) {
+    const s0 = F(o.o)[0];
+    if (prevEnd !== null && s0 - prevEnd > 0.2 * h && !/\s$/.test(text) && !/^\s/.test(o.str)) text += ' ';
+    text += o.str; prevEnd = s0 + o.w;
+  }
+  text = text.replace(/\s+$/, '');
+  const d = it.dir, pp = [-d[1], d[0]];
+  const at = (t, nn) => [it.o[0] + d[0] * t + pp[0] * nn, it.o[1] + d[1] * t + pp[1] * nn];
+  const pad = 0.04 * h;
+  const poly = [at(lo - pad, -0.26 * h), at(hi + pad, -0.26 * h), at(hi + pad, 0.94 * h), at(lo - pad, 0.94 * h)];
+  return { text, origin: at(lo, 0), poly, ops: [...opsSel.values()].map(o => ({ at: o.at, end: o.end, tr: o.tr })), items: [...chosen], ang: Math.atan2(d[1], d[0]) * 180 / Math.PI };
+}
+// Reads the text and paper colours from the rendered page
+function sampleColors(p, poly) {
+  const r = RT[p.id]; const out = { fg: '#1b1f27', bg: '#ffffff' };
+  if (!r || !r.rendered) return out;
+  try {
+    const c = r.canvas, k = c.width / r.vp.width;
+    const pts = poly.map(q => r.vp.convertToViewportPoint(q[0], q[1]));
+    const xs = pts.map(q => q[0] * k), ys = pts.map(q => q[1] * k);
+    const x0 = clamp(Math.floor(Math.min(...xs)) - 2, 0, c.width - 1), y0 = clamp(Math.floor(Math.min(...ys)) - 2, 0, c.height - 1);
+    const x1 = clamp(Math.ceil(Math.max(...xs)) + 2, x0 + 1, c.width), y1 = clamp(Math.ceil(Math.max(...ys)) + 2, y0 + 1, c.height);
+    const w = x1 - x0, h = y1 - y0; const d = c.getContext('2d').getImageData(x0, y0, w, h).data;
+    const buckets = new Map();
+    const px = (x, y) => { const i = (y * w + x) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+    for (let x = 0; x < w; x++) for (const y of [0, h - 1]) { const v = px(x, y); const key = (v[0] >> 4) + ',' + (v[1] >> 4) + ',' + (v[2] >> 4); const bk = buckets.get(key) || { n: 0, s: [0, 0, 0] }; bk.n++; bk.s[0] += v[0]; bk.s[1] += v[1]; bk.s[2] += v[2]; buckets.set(key, bk); }
+    for (let y = 0; y < h; y++) for (const x of [0, w - 1]) { const v = px(x, y); const key = (v[0] >> 4) + ',' + (v[1] >> 4) + ',' + (v[2] >> 4); const bk = buckets.get(key) || { n: 0, s: [0, 0, 0] }; bk.n++; bk.s[0] += v[0]; bk.s[1] += v[1]; bk.s[2] += v[2]; buckets.set(key, bk); }
+    let best = null; for (const b of buckets.values()) if (!best || b.n > best.n) best = b;
+    const bg = best.s.map(v => Math.round(v / best.n));
+    let fg = null, fd = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = px(x, y); const dd = Math.abs(v[0] - bg[0]) + Math.abs(v[1] - bg[1]) + Math.abs(v[2] - bg[2]); if (dd > fd) { fd = dd; fg = v; } }
+    const hex = v => '#' + v.map(x => x.toString(16).padStart(2, '0')).join('');
+    out.bg = hex(bg); if (fg && fd > 60) out.fg = hex(fg);
+  } catch (_) {}
+  return out;
+}
+async function editExisting(p, it) {
+  commitEditor();
+  try {
+    const [blk, info] = await Promise.all([buildBlock(p, it), ensureFont(p, it.font)]);
+    const col = sampleColors(p, blk.poly);
+    const a = { id: nid(), type: 'text', x: blk.origin[0], y: blk.origin[1], rot: blk.ang, text: blk.text, color: col.fg, size: +it.h.toFixed(2), font: info.key,
+      orig: { text: blk.text, poly: blk.poly, ops: blk.ops, items: blk.items, bg: col.bg } };
+    openEditor(p, a, true);
+  } catch (e) { console.error(e); toast('No se pudo leer ese texto.'); }
+}
+
+/* ---------- layout & rendering ---------- */
+const desk = $('#desk');
+const io = new IntersectionObserver(entries => {
+  for (const en of entries) {
+    const r = RT[en.target.dataset.pid]; if (!r) continue;
+    r.visible = en.isIntersecting;
+    if (r.visible) renderCanvas(en.target.dataset.pid);
+  }
+}, { root: desk, rootMargin: '800px 0px' });
+
+function computeScale() {
+  if (S.zoom !== 'fit') { S.scale = S.zoom; return; }
+  const avail = desk.clientWidth - (window.innerWidth < 760 ? 32 : 80);
+  let maxW = 1;
+  for (const p of S.pages) maxW = Math.max(maxW, viewport(p, 1).width);
+  S.scale = clamp(avail / maxW, 0.25, 2.5);
+}
+
+function createWrap(p) {
+  const wrap = document.createElement('div'); wrap.className = 'page'; wrap.dataset.pid = p.id;
+  const canvas = document.createElement('canvas'); canvas.className = 'pc';
+  const svg = mk('svg', { class: 'ov' });
+  const num = document.createElement('div'); num.className = 'pnum';
+  wrap.append(canvas, svg, num);
+  const pid = p.id;
+  svg.addEventListener('pointerdown', e => onDown(e, pid));
+  svg.addEventListener('dblclick', e => onDbl(e, pid));
+  io.observe(wrap);
+  return { wrap, canvas, svg, num, key: null, vp: null, rendered: false, visible: false };
+}
+
+function renderAll() {
+  computeScale();
+  const cont = $('#pages');
+  const keep = new Set(S.pages.map(p => p.id));
+  for (const id in RT) if (!keep.has(id)) { io.unobserve(RT[id].wrap); RT[id].wrap.remove(); delete RT[id]; }
+  S.pages.forEach((p, i) => {
+    let r = RT[p.id]; if (!r) r = RT[p.id] = createWrap(p);
+    const key = S.scale.toFixed(4) + '|' + rotOf(p);
+    if (r.key !== key) {
+      r.key = key; r.vp = viewport(p, S.scale); r.rendered = false;
+      if (r.task) { try { r.task.cancel(); } catch (_) {} r.task = null; }
+      r.rendering = null;
+      r.wrap.style.width = r.vp.width + 'px'; r.wrap.style.height = r.vp.height + 'px';
+      r.svg.setAttribute('width', r.vp.width); r.svg.setAttribute('height', r.vp.height);
+      if (r.visible) renderCanvas(p.id);
+    }
+    r.num.textContent = i + 1;
+    if (cont.children[i] !== r.wrap) cont.insertBefore(r.wrap, cont.children[i] || null);
+    drawAnnots(p);
+  });
+  S.cur = clamp(S.cur, 0, S.pages.length - 1);
+  $('#loading').hidden = true;
+  $('#bFit').textContent = Math.round(S.scale * 100) + ' %';
+  renderThumbs(); updateStatus(); updateButtons(); updateProps();
+}
+
+async function renderCanvas(pid) {
+  const r = RT[pid], p = pageById(pid); if (!r || !p || r.rendered || r.rendering === r.key) return;
+  const key = r.key; r.rendering = key;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const c = document.createElement('canvas');
+  c.width = Math.floor(r.vp.width * dpr); c.height = Math.floor(r.vp.height * dpr);
+  const task = proxy(p).render({ canvasContext: c.getContext('2d'), viewport: r.vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null });
+  r.task = task;
+  try { await task.promise; } catch (e) { if (r.rendering === key) r.rendering = null; return; }
+  if (r.key !== key) return;
+  c.className = 'pc'; r.canvas.replaceWith(c); r.canvas = c; r.rendered = true; r.rendering = null; r.task = null;
+}
+
+/* ---------- annotations: display ---------- */
+let ED = null; // active text editor
+function annEl(a, vp, s, D) {
+  const t = a.type;
+  if (t === 'hl' || t === 'rect' || t === 'white') {
+    const [x1, y1] = vp.convertToViewportPoint(a.x1, a.y1), [x2, y2] = vp.convertToViewportPoint(a.x2, a.y2);
+    const g = { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1) };
+    if (t === 'hl') return mk('rect', { ...g, fill: a.color, 'fill-opacity': 0.42, class: 'a hl' });
+    if (t === 'white') return mk('rect', { ...g, fill: '#ffffff', class: 'a' });
+    return mk('rect', { ...g, fill: 'none', stroke: a.color, 'stroke-width': a.size * s, 'pointer-events': 'visible', class: 'a' });
+  }
+  if (t === 'pen') {
+    const pts = a.pts.map(q => vp.convertToViewportPoint(q[0], q[1]).map(v => v.toFixed(1)).join(',')).join(' ');
+    const g = mk('g', { class: 'a' });
+    g.append(
+      mk('polyline', { points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(a.size * s, 12), 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'pointer-events': 'stroke' }),
+      mk('polyline', { points: pts, fill: 'none', stroke: a.color, 'stroke-width': a.size * s, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'pointer-events': 'none' })
+    );
+    return g;
+  }
+  const [vx, vy] = vp.convertToViewportPoint(a.x, a.y);
+  const delta = ((D - a.rot) % 360 + 360) % 360;
+  const g = mk('g', { transform: `translate(${vx} ${vy}) rotate(${delta})`, class: 'a' });
+  if (t === 'text' && a.font) {
+    // edited original text: paper-coloured cover over the old words, then the new words in the PDF's own font
+    const outer = mk('g', { class: 'a' }); outer.dataset.orig = '1';
+    const poly = a.orig.poly.map(q => vp.convertToViewportPoint(q[0], q[1]).map(v => v.toFixed(2)).join(',')).join(' ');
+    outer.appendChild(mk('polygon', { points: poly, fill: a.orig.bg, stroke: a.orig.bg, 'stroke-width': 1.2 }));
+    const info = FONTR[a.font];
+    const tx = mk('text', { fill: a.color, 'font-size': a.size * s, style: 'white-space:pre' });
+    a.text.split('\n').forEach((ln, i) => {
+      const line = mk('tspan', { x: 0, y: i * a.size * 1.2 * s });
+      for (const sg of segs(info, ln)) {
+        const sp = mk('tspan', sg.emb ? { 'font-family': `"${info.family}"` } : { 'font-family': info ? info.css : 'Helvetica, Arial, sans-serif', 'font-weight': info ? info.weight : 400, 'font-style': info ? info.style : 'normal' });
+        sp.textContent = sg.s; line.appendChild(sp);
+      }
+      tx.appendChild(line);
+    });
+    g.appendChild(tx); outer.appendChild(g);
+    return outer;
+  }
+  if (t === 'text') {
+    const tx = mk('text', { fill: a.color, 'font-size': a.size * s, 'font-family': 'Helvetica, Arial, sans-serif', style: 'white-space:pre' });
+    a.text.split('\n').forEach((ln, i) => { const sp = mk('tspan', { x: 0, y: i * a.size * 1.2 * s }); sp.textContent = ln || ' '; tx.appendChild(sp); });
+    g.appendChild(tx); g.dataset.txt = '1';
+  } else if (t === 'img') {
+    const im = S.imgs[a.img];
+    g.appendChild(mk('image', { href: im ? im.url : '', x: 0, y: -a.h * s, width: a.w * s, height: a.h * s, preserveAspectRatio: 'none' }));
+  }
+  return g;
+}
+function drawAnnots(p) {
+  const r = RT[p.id]; if (!r) return;
+  const svg = r.svg; svg.replaceChildren();
+  const D = rotOf(p);
+  let selEl = null;
+  if (S.tool === 'edit') {
+    const items = TXR[pkey(p)];
+    if (!items) textItems(p).then(() => { if (S.tool === 'edit' && pageById(p.id)) drawAnnots(p); });
+    else {
+      const used = usedOn(p).items; const editing = ED && ED.p.id === p.id && ED.a.orig ? new Set(ED.a.orig.items) : null;
+      for (const it of items) {
+        if (used.has(it.i) || (editing && editing.has(it.i))) continue;
+        const d = it.dir, pp = [-d[1], d[0]], h = it.h;
+        const pts = [[0, -0.22], [1, -0.22], [1, 0.9], [0, 0.9]].map(([t, n]) => r.vp.convertToViewportPoint(it.o[0] + d[0] * it.w * t + pp[0] * n * h, it.o[1] + d[1] * it.w * t + pp[1] * n * h).map(v => v.toFixed(1)).join(','));
+        const pg = mk('polygon', { points: pts.join(' '), class: 'cand' }); pg.dataset.ii = it.i; svg.appendChild(pg);
+      }
+    }
+  }
+  const list = (ED && ED.isNew && ED.p.id === p.id) ? p.annots.concat([ED.a]) : p.annots;
+  for (const a of list) {
+    if (ED && ED.a.id === a.id && !a.font) continue;
+    const el = annEl(a, r.vp, S.scale, D); el.dataset.aid = a.id; svg.appendChild(el);
+    if (el.dataset.txt) { const bb = el.firstChild.getBBox(); el.insertBefore(mk('rect', { x: bb.x - 2, y: bb.y - 2, width: bb.width + 4, height: bb.height + 4, fill: 'transparent' }), el.firstChild); }
+    if (S.sel && S.sel.pid === p.id && S.sel.aid === a.id && !(ED && ED.a.id === a.id)) selEl = el;
+  }
+  if (selEl) {
+    const b = selEl.getBoundingClientRect(), o = svg.getBoundingClientRect();
+    svg.appendChild(mk('rect', { class: 'selbox', x: b.left - o.left - 4, y: b.top - o.top - 4, width: b.width + 8, height: b.height + 8, rx: 2 }));
+  }
+}
+function setSel(sel) {
+  const prev = S.sel; S.sel = sel;
+  const ids = new Set([prev && prev.pid, sel && sel.pid].filter(Boolean));
+  ids.forEach(id => { const p = pageById(id); if (p) drawAnnots(p); });
+  updateProps();
+}
+function selAnn() { if (!S.sel) return null; const p = pageById(S.sel.pid); return p ? p.annots.find(a => a.id === S.sel.aid) || null : null; }
+
+/* ---------- annotations: input ---------- */
+function local(e, r) { const b = r.svg.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
+function gesture(e, move, up) {
+  const el = e.currentTarget;
+  try { el.setPointerCapture(e.pointerId); } catch (_) {}
+  const mv = ev => move(ev);
+  const u = ev => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', u); el.removeEventListener('pointercancel', u); up(ev); };
+  el.addEventListener('pointermove', mv); el.addEventListener('pointerup', u); el.addEventListener('pointercancel', u);
+}
+function translateAnn(a, dx, dy) {
+  if ('x1' in a) { a.x1 += dx; a.x2 += dx; a.y1 += dy; a.y2 += dy; }
+  else if (a.pts) a.pts = a.pts.map(q => [q[0] + dx, q[1] + dy]);
+  else { a.x += dx; a.y += dy; }
+  return a;
+}
+function setCur(i) { if (S.cur !== i) { S.cur = i; markThumb(); updateStatus(); } }
+
+function onDown(e, pid) {
+  if (e.button > 0) return;
+  const p = pageById(pid), r = RT[pid]; if (!p || !r) return;
+  commitEditor();
+  setCur(S.pages.indexOf(p));
+  const [vx, vy] = local(e, r);
+  const [ux, uy] = r.vp.convertToPdfPoint(vx, vy);
+  const t = S.tool;
+  const hit = e.target.closest && e.target.closest('[data-aid]');
+
+  if (t === 'select') {
+    if (!hit) { setSel(null); return; }
+    e.preventDefault();
+    const aid = hit.dataset.aid; setSel({ pid, aid });
+    const a = p.annots.find(x => x.id === aid); if (!a) return;
+    const orig = JSON.stringify(a), before = snap();
+    let moved = false;
+    gesture(e, ev => {
+      const [mx, my] = local(ev, r);
+      if (!moved && Math.hypot(mx - vx, my - vy) < 3) return;
+      moved = true;
+      const [qx, qy] = r.vp.convertToPdfPoint(mx, my);
+      Object.assign(a, translateAnn(JSON.parse(orig), qx - ux, qy - uy));
+      drawAnnots(p);
+    }, () => { if (moved) commit(before); });
+    return;
+  }
+  if (t === 'edit') {
+    e.preventDefault();
+    if (hit) { const a = p.annots.find(x => x.id === hit.dataset.aid); if (a && a.type === 'text') { openEditor(p, a, false); return; } }
+    const cand = e.target.closest && e.target.closest('[data-ii]');
+    if (cand) { const it = (TXR[pkey(p)] || []).find(x => x.i === +cand.dataset.ii); if (it) editExisting(p, it); }
+    else if (TXR[pkey(p)] && !TXR[pkey(p)].length) toast('Esta página no tiene texto editable (puede ser una imagen escaneada).');
+    return;
+  }
+  if (t === 'text') {
+    e.preventDefault();
+    if (hit) { const a = p.annots.find(x => x.id === hit.dataset.aid); if (a && a.type === 'text') { openEditor(p, a, false); return; } }
+    const s = S.scale;
+    const [bx, by] = r.vp.convertToPdfPoint(vx, vy + S.fontSize * s * 0.8);
+    openEditor(p, { id: nid(), type: 'text', x: bx, y: by, rot: rotOf(p), text: '', color: S.colors.text, size: S.fontSize }, true);
+    return;
+  }
+  if (t === 'pen') {
+    e.preventDefault();
+    const pts = [[ux, uy]], vpts = [[vx, vy]];
+    const line = mk('polyline', { fill: 'none', stroke: S.colors.pen, 'stroke-width': S.stroke * S.scale, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    r.svg.appendChild(line);
+    gesture(e, ev => {
+      const evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [ev];
+      for (const ce of (evs.length ? evs : [ev])) {
+        const [mx, my] = local(ce, r); const last = vpts[vpts.length - 1];
+        if (Math.hypot(mx - last[0], my - last[1]) < 1.2) continue;
+        vpts.push([mx, my]); pts.push(r.vp.convertToPdfPoint(mx, my));
+      }
+      line.setAttribute('points', vpts.map(q => q.join(',')).join(' '));
+    }, () => {
+      line.remove();
+      if (pts.length < 2) pts.push([ux + 0.1, uy]);
+      const before = snap();
+      p.annots.push({ id: nid(), type: 'pen', pts: simplify(pts, 0.25 / Math.max(S.scale, .5)), color: S.colors.pen, size: S.stroke });
+      commit(before); drawAnnots(p);
+    });
+    return;
+  }
+  if (t === 'hl' || t === 'rect' || t === 'white') {
+    e.preventDefault();
+    const box = mk('rect', { x: vx, y: vy, width: 0, height: 0 });
+    if (t === 'hl') { box.setAttribute('fill', S.colors.hl); box.setAttribute('fill-opacity', .42); box.setAttribute('class', 'hl'); }
+    else if (t === 'white') { box.setAttribute('fill', '#ffffff'); box.setAttribute('stroke', '#9aa1ad'); box.setAttribute('stroke-dasharray', '4 3'); }
+    else { box.setAttribute('fill', 'none'); box.setAttribute('stroke', S.colors.rect); box.setAttribute('stroke-width', S.stroke * S.scale); }
+    r.svg.appendChild(box);
+    let end = [vx, vy];
+    gesture(e, ev => {
+      end = local(ev, r);
+      box.setAttribute('x', Math.min(vx, end[0])); box.setAttribute('y', Math.min(vy, end[1]));
+      box.setAttribute('width', Math.abs(end[0] - vx)); box.setAttribute('height', Math.abs(end[1] - vy));
+    }, () => {
+      box.remove();
+      if (Math.abs(end[0] - vx) < 4 || Math.abs(end[1] - vy) < 4) return;
+      const [x2, y2] = r.vp.convertToPdfPoint(end[0], end[1]);
+      const a = { id: nid(), type: t, x1: ux, y1: uy, x2, y2 };
+      if (t === 'hl') a.color = S.colors.hl;
+      if (t === 'rect') { a.color = S.colors.rect; a.size = S.stroke; }
+      const before = snap(); p.annots.push(a); commit(before); drawAnnots(p);
+    });
+  }
+}
+function onDbl(e, pid) {
+  const hit = e.target.closest && e.target.closest('[data-aid]'); if (!hit) return;
+  const p = pageById(pid); const a = p.annots.find(x => x.id === hit.dataset.aid);
+  if (a && a.type === 'text') openEditor(p, a, false);
+}
+// Ramer–Douglas–Peucker, keeps pen paths light in the exported file
+function simplify(pts, eps) {
+  if (pts.length < 3) return pts;
+  const d = (p, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy; if (!L) return Math.hypot(p[0] - a[0], p[1] - a[1]); const t = clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L, 0, 1); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); };
+  let max = 0, idx = 0;
+  for (let i = 1; i < pts.length - 1; i++) { const v = d(pts[i], pts[0], pts[pts.length - 1]); if (v > max) { max = v; idx = i; } }
+  if (max <= eps) return [pts[0], pts[pts.length - 1]];
+  return simplify(pts.slice(0, idx + 1), eps).slice(0, -1).concat(simplify(pts.slice(idx), eps));
+}
+
+/* ---------- text editor ---------- */
+const measureCtx = document.createElement('canvas').getContext('2d');
+function openEditor(p, a, isNew) {
+  commitEditor();
+  const r = RT[p.id]; if (!r) return;
+  const info = a.font ? FONTR[a.font] : null;
+  const ta = document.createElement('textarea'); ta.className = 'ed' + (a.font ? ' ghost' : ''); ta.value = a.text; ta.spellcheck = false;
+  ta.setAttribute('aria-label', a.font ? 'Texto del PDF' : 'Texto');
+  const css = info ? info.css : 'Helvetica, Arial, sans-serif';
+  const layout = () => {
+    const s = S.scale, fs = a.size * s;
+    const delta = ((rotOf(p) - a.rot) % 360 + 360) % 360;
+    const [vx, vy] = r.vp.convertToViewportPoint(a.x, a.y);
+    Object.assign(ta.style, { fontSize: fs + 'px', lineHeight: (1.2 * fs) + 'px', color: a.color, fontFamily: css, fontWeight: info ? info.weight : 400, fontStyle: info ? info.style : 'normal',
+      left: vx + 'px', top: (vy - 0.92 * fs) + 'px', transformOrigin: `0 ${0.92 * fs}px`, transform: `rotate(${delta}deg)` });
+    measureCtx.font = `${info ? info.style : 'normal'} ${info ? info.weight : 400} ${fs}px ${css}`;
+    const lines = ta.value.split('\n');
+    const w = Math.max(...lines.map(l => measureCtx.measureText(l).width), fs * 3);
+    ta.style.width = (w * 1.08 + fs) + 'px'; ta.style.height = (lines.length * 1.2 * fs + 2) + 'px';
+  };
+  layout();
+  ta.addEventListener('input', () => { a.text = ta.value; layout(); if (a.font) drawAnnots(p); });
+  ta.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Escape' || (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey || a.font))) { ev.preventDefault(); commitEditor(); } });
+  ta.addEventListener('pointerdown', ev => ev.stopPropagation());
+  r.wrap.appendChild(ta);
+  ED = { p, a, isNew, ta, layout, before: snap(), start: JSON.stringify(a) };
+  if (!isNew) S.sel = { pid: p.id, aid: a.id };
+  drawAnnots(p); updateProps();
+  setTimeout(() => {
+    if (!ED || ED.ta !== ta) return;
+    ta.focus(); if (a.font) ta.select();
+    ta.addEventListener('blur', ev => {
+      if (ev.relatedTarget && $('#props').contains(ev.relatedTarget)) return;
+      setTimeout(() => { if (ED && ED.ta === ta && !propsPointer && document.activeElement !== ta && !$('#props').contains(document.activeElement)) commitEditor(); }, 0);
+    });
+  }, 0);
+}
+function commitEditor() {
+  if (!ED) return;
+  const { p, a, isNew, ta, before, start } = ED; ED = null;
+  a.text = ta.value.replace(/\s+$/, '');
+  ta.remove();
+  const changed = JSON.stringify(a) !== start;
+  if (isNew) {
+    // original text counts as edited only if something changed; an emptied block erases the original words
+    if (a.font ? changed : a.text) { p.annots.push(a); commit(before); S.sel = { pid: p.id, aid: a.id }; }
+  } else if (!a.text && !a.font) { p.annots = p.annots.filter(x => x.id !== a.id); commit(before); S.sel = null; }
+  else if (changed) commit(before);
+  if (pageById(p.id)) drawAnnots(p);
+  updateProps();
+}
+
+/* ---------- images ---------- */
+async function addImageFile(file) {
+  try {
+    let url = await readFile(file, 'url');
+    const img = await loadImg(url);
+    let kind = file.type === 'image/jpeg' ? 'jpg' : 'png';
+    if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+      const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0); url = c.toDataURL('image/png'); kind = 'png';
+    }
+    const iid = nid(); S.imgs[iid] = { url, kind, bytes: dataUrlBytes(url) };
+    const p = S.pages[S.cur]; const r = RT[p.id]; const s = S.scale;
+    const W = viewport(p, 1).width;
+    const w = Math.min(img.naturalWidth * 0.75, W * 0.4), h = w * img.naturalHeight / img.naturalWidth;
+    const cx = r.vp.width / 2, cy = clamp(desk.scrollTop + desk.clientHeight / 2 - r.wrap.offsetTop, h * s / 2, r.vp.height - h * s / 2);
+    const [x, y] = r.vp.convertToPdfPoint(cx - w * s / 2, cy + h * s / 2);
+    const a = { id: nid(), type: 'img', x, y, w, h, rot: rotOf(p), img: iid };
+    const before = snap(); p.annots.push(a); commit(before);
+    setTool('select'); S.sel = { pid: p.id, aid: a.id }; drawAnnots(p); updateProps();
+  } catch (e) { toast('No se pudo leer esa imagen.'); }
+}
+
+/* ---------- thumbnails ---------- */
+const ICON = {
+  rot: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 11-2.1-5"/><path d="M19 4v4h-4"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6 6 6-6"/></svg>',
+  del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"/></svg>'
+};
+const thumbCache = {};
+let thumbGen = 0;
+async function renderThumbs() {
+  const gen = ++thumbGen;
+  const list = $('#thumbs'); list.replaceChildren();
+  const jobs = [];
+  S.pages.forEach((p, i) => {
+    const el = document.createElement('div'); el.className = 'thumb' + (i === S.cur ? ' cur' : ''); el.dataset.i = i;
+    const tc = document.createElement('button'); tc.className = 'tc'; tc.setAttribute('aria-label', 'Ir a la página ' + (i + 1));
+    tc.onclick = () => { scrollToPage(i); if (window.innerWidth < 760) $('#side').classList.remove('open'); };
+    const row = document.createElement('div'); row.className = 'row';
+    const btn = (ic, title, fn, dis) => { const b = document.createElement('button'); b.className = 'mini'; b.innerHTML = ICON[ic]; b.title = title; b.setAttribute('aria-label', title); b.disabled = !!dis; b.onclick = fn; return b; };
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = i + 1;
+    row.append(
+      btn('up', 'Mover arriba', () => movePage(i, -1), i === 0),
+      btn('down', 'Mover abajo', () => movePage(i, 1), i === S.pages.length - 1),
+      n,
+      btn('rot', 'Girar 90°', () => rotatePage(i)),
+      btn('del', 'Eliminar página', () => deletePage(i), S.pages.length === 1)
+    );
+    el.append(tc, row); list.appendChild(el);
+    jobs.push([p, tc]);
+  });
+  for (const [p, tc] of jobs) {
+    if (gen !== thumbGen) return;
+    const k = p.id + '|' + rotOf(p);
+    let c = thumbCache[k];
+    if (!c) {
+      const v0 = viewport(p, 1); const sc = 128 / Math.max(v0.width, v0.height) * 1.1;
+      const v = viewport(p, sc * 2);
+      c = document.createElement('canvas'); c.width = Math.floor(v.width); c.height = Math.floor(v.height);
+      c.style.width = (v.width / 2) + 'px'; c.style.height = (v.height / 2) + 'px';
+      try { await proxy(p).render({ canvasContext: c.getContext('2d'), viewport: v }).promise; thumbCache[k] = c; } catch (_) {}
+      if (gen !== thumbGen) return;
+    }
+    tc.appendChild(c.cloneNode ? cloneCanvas(c) : c);
+  }
+}
+function cloneCanvas(c) { const n = document.createElement('canvas'); n.width = c.width; n.height = c.height; n.style.cssText = c.style.cssText; n.getContext('2d').drawImage(c, 0, 0); return n; }
+function markThumb() { document.querySelectorAll('.thumb').forEach(t => t.classList.toggle('cur', +t.dataset.i === S.cur)); }
+
+function movePage(i, d) { const j = i + d; if (j < 0 || j >= S.pages.length) return; commitEditor(); const before = snap(); const [p] = S.pages.splice(i, 1); S.pages.splice(j, 0, p); commit(before); S.cur = j; renderAll(); }
+function rotatePage(i) { commitEditor(); const before = snap(); S.pages[i].rot = (S.pages[i].rot + 90) % 360; commit(before); renderAll(); }
+function deletePage(i) {
+  if (S.pages.length === 1) { toast('El documento necesita al menos una página.'); return; }
+  commitEditor(); const before = snap(); S.pages.splice(i, 1); commit(before);
+  if (S.sel && !pageById(S.sel.pid)) S.sel = null;
+  renderAll(); toast(`Página ${i + 1} eliminada. Ctrl+Z para deshacer.`);
+}
+function scrollToPage(i) { const p = S.pages[i]; if (!p || !RT[p.id]) return; desk.scrollTo({ top: RT[p.id].wrap.offsetTop - 16, behavior: 'smooth' }); setCur(i); }
+
+/* ---------- status, props, buttons ---------- */
+function paperName(w, h) {
+  const a = Math.min(w, h), b = Math.max(w, h), near = (x, y) => Math.abs(a - x) < 3 && Math.abs(b - y) < 3;
+  if (near(595, 842)) return 'A4'; if (near(612, 792)) return 'Carta'; if (near(612, 1008)) return 'Oficio'; if (near(420, 595)) return 'A5'; if (near(842, 1191)) return 'A3';
+  return `${Math.round(w / 72 * 25.4)} × ${Math.round(h / 72 * 25.4)} mm`;
+}
+function updateStatus() {
+  $('#sFile').textContent = S.name;
+  const p = S.pages[S.cur];
+  $('#sPage').textContent = p ? `Página ${S.cur + 1} de ${S.pages.length}` : '—';
+  if (p) { const v = viewport(p, 1); $('#sSize').textContent = `${paperName(v.width, v.height)} · ${Math.round(v.width)} × ${Math.round(v.height)} pt`; }
+}
+function updateButtons() {
+  $('#bUndo').disabled = !S.undo.length; $('#bRedo').disabled = !S.redo.length;
+  document.querySelectorAll('.tool').forEach(b => b.classList.toggle('on', b.dataset.tool === S.tool));
+  document.body.className = 't-' + S.tool;
+  document.querySelectorAll('.ov').forEach(s => s.style.touchAction = S.tool === 'select' ? 'pan-x pan-y' : 'none');
+}
+const HINTS = {
+  edit: 'Hacé clic en cualquier texto del PDF para cambiarlo. Se escribe con la misma fuente, tamaño y color del original.',
+  select: 'Tocá un elemento para seleccionarlo y arrastralo para moverlo. Doble clic en un texto para editarlo. Supr lo elimina.',
+  text: 'Hacé clic en la página donde querés escribir. Ctrl+Enter o clic afuera para terminar.',
+  pen: 'Dibujá a mano alzada: ideal para firmar o marcar.',
+  hl: 'Arrastrá sobre el texto para resaltarlo.',
+  rect: 'Arrastrá para dibujar un recuadro.',
+  white: 'Arrastrá para tapar con blanco lo que quieras ocultar. Después podés escribir encima.'
+};
+let sliderBefore = null;
+function updateProps() {
+  const box = $('#props'); box.replaceChildren();
+  const a = ED ? ED.a : selAnn();
+  const ctx = a ? a.type : (S.tool === 'edit' ? null : S.tool);
+  const colorKey = { text: 'text', pen: 'pen', hl: 'hl', rect: 'rect' }[ctx];
+  const add = html => { const d = document.createElement('div'); d.className = 'grp'; d.innerHTML = html; box.appendChild(d); return d; };
+  if (a && a.font) {
+    const info = FONTR[a.font];
+    const g = add('<span class="lbl">Fuente</span>');
+    const chip = document.createElement('span'); chip.className = 'fontchip'; chip.textContent = info ? info.name : '—'; g.appendChild(chip);
+    if (info) {
+      const nice = { Helvetica: 'Helvetica', Times: 'Times', Courier: 'Courier' }[info.stdFam];
+      const missing = info.map ? [...new Set([...a.text].filter(ch => ch !== '\n' && !info.map.has(ch) && ch.trim()))] : [];
+      let msg = '';
+      if (!info.map) msg = `La fuente no viene incrustada en el PDF; se escribe con ${nice}, la equivalente estándar.`;
+      else if (missing.length) msg = `El PDF solo trae las letras que usaba. ${missing.slice(0, 6).map(c => '«' + c + '»').join(' ')} no están, se completan con ${nice}.`;
+      if (msg) { const w = document.createElement('span'); w.className = 'warn'; w.textContent = msg; g.appendChild(w); }
+    }
+  }
+  if (colorKey) {
+    const cur = a ? a.color : S.colors[colorKey];
+    const g = add('<span class="lbl">Color</span>');
+    SWATCHES.forEach(c => { const b = document.createElement('button'); b.className = 'sw' + (c.toLowerCase() === cur.toLowerCase() ? ' on' : ''); b.style.background = c; b.title = c; b.setAttribute('aria-label', 'Color ' + c); b.onclick = () => setColor(colorKey, c); g.appendChild(b); });
+    const pick = document.createElement('input'); pick.type = 'color'; pick.className = 'cpick'; pick.id = 'cpick'; pick.value = cur; pick.title = 'Otro color';
+    pick.onchange = () => setColor(colorKey, pick.value); g.appendChild(pick);
+  }
+  let size = null;
+  if (ctx === 'text') size = { label: 'Tamaño', min: 4, max: 96, step: 0.5, val: a ? a.size : S.fontSize, unit: 'pt' };
+  else if (ctx === 'pen' || ctx === 'rect') size = { label: 'Grosor', min: 0.5, max: 16, step: 0.5, val: a ? a.size : S.stroke, unit: 'pt' };
+  else if (ctx === 'img') size = { label: 'Ancho', min: 16, max: Math.round(viewport(pageById(S.sel.pid), 1).width * 1.5), step: 1, val: a.w, unit: 'pt' };
+  if (size) {
+    const g = add(`<label class="lbl" for="szr">${size.label}</label><input type="range" id="szr" min="${size.min}" max="${size.max}" step="${size.step}" value="${size.val}"><span class="val" id="szv">${(+size.val).toFixed(size.step < 1 ? 1 : 0)} ${size.unit}</span>`);
+    const rng = g.querySelector('input');
+    rng.oninput = () => {
+      const v = +rng.value; g.querySelector('.val').textContent = v.toFixed(size.step < 1 ? 1 : 0) + ' ' + size.unit;
+      if (ED) { ED.a.size = v; ED.layout(); drawAnnots(ED.p); return; }
+      const s = selAnn();
+      if (s) {
+        if (!sliderBefore) sliderBefore = snap();
+        if (s.type === 'img') { s.h = s.h * v / s.w; s.w = v; } else s.size = v;
+        drawAnnots(pageById(S.sel.pid));
+      } else if (ctx === 'text') S.fontSize = v; else S.stroke = v;
+    };
+    rng.onchange = () => { if (sliderBefore) { commit(sliderBefore); sliderBefore = null; } };
+  }
+  if (ED) {
+    const h = document.createElement('span'); h.className = 'hint';
+    h.textContent = a.font ? 'Escribí el texto nuevo. Enter o clic afuera para aplicar, Esc para terminar.' : 'Ctrl+Enter o clic afuera para terminar.';
+    box.appendChild(h);
+  } else if (a) {
+    const g = add('');
+    const del = document.createElement('button'); del.className = 'btn ghost'; del.textContent = a.font ? 'Restaurar original' : 'Eliminar'; del.onclick = deleteSel;
+    g.appendChild(del);
+    if (a.type === 'text') { const ed = document.createElement('button'); ed.className = 'btn ghost'; ed.textContent = 'Editar texto'; ed.onclick = () => openEditor(pageById(S.sel.pid), a, false); g.appendChild(ed); }
+  } else {
+    const h = document.createElement('span'); h.className = 'hint'; h.textContent = HINTS[S.tool] || ''; box.appendChild(h);
+  }
+}
+function setColor(key, c) {
+  if (ED) { ED.a.color = c; ED.layout(); drawAnnots(ED.p); updateProps(); return; }
+  const a = selAnn();
+  if (!(a && a.font)) S.colors[key] = c;
+  if (a && a.color !== c) { const before = snap(); a.color = c; commit(before); drawAnnots(pageById(S.sel.pid)); }
+  updateProps();
+}
+function deleteSel() {
+  const a = selAnn(); if (!a) return;
+  const p = pageById(S.sel.pid); const before = snap();
+  p.annots = p.annots.filter(x => x.id !== a.id); commit(before); S.sel = null; drawAnnots(p); updateProps();
+}
+function setTool(t) {
+  commitEditor(); const was = S.tool; S.tool = t;
+  if (S.sel && t !== 'select') setSel(null);
+  if ((was === 'edit') !== (t === 'edit')) S.pages.forEach(drawAnnots);
+  updateButtons(); updateProps();
+}
+let propsPointer = false;
+$('#props').addEventListener('pointerdown', e => { propsPointer = true; if (e.target.closest('button')) e.preventDefault(); });
+$('#props').addEventListener('mousedown', e => { if (e.target.closest('button')) e.preventDefault(); });
+window.addEventListener('pointerup', () => setTimeout(() => propsPointer = false, 0), true);
+
+/* ---------- export ---------- */
+async function buildPdf() {
+  const out = await PDFDocument.create();
+  const font = await out.embedFont(StandardFonts.Helvetica);
+  if (window.fontkit) out.registerFontkit(fontkit);
+  const srcPages = {};
+  for (const src of new Set(S.pages.map(p => p.src))) {
+    const d = await libDoc(src);
+    const idxs = S.pages.filter(p => p.src === src).map(p => p.idx);
+    const copied = await out.copyPages(d, idxs);
+    idxs.forEach((ix, k) => srcPages[src + ':' + ix] = copied[k]);
+  }
+  const embedded = {}, embFonts = {}, stdFonts = {};
+  const cleanFor = (f, t) => [...t].map(ch => { try { f.encodeText(ch); return ch; } catch (_) { return '?'; } }).join('');
+  const clean = t => [...t].map(ch => { if (ch === '\n') return ch; try { font.encodeText(ch); return ch; } catch (_) { return '?'; } }).join('');
+  for (const p of S.pages) {
+    const pg = out.addPage(srcPages[p.src + ':' + p.idx]);
+    pg.setRotation(degrees(rotOf(p)));
+    // original words that were edited: made invisible in place (text render mode 3), keeping every other glyph where it was
+    const edited = p.annots.filter(a => a.orig);
+    const hidden = edited.flatMap(a => a.orig.ops);
+    if (hidden.length) {
+      const an = await pageOps(p);
+      if (an) {
+        const ref = out.context.register(out.context.flateStream(hideOps(an.bytes, hidden)));
+        pg.node.set(PDFName.of('Contents'), out.context.obj([ref]));
+      }
+    }
+    for (const a of edited) {
+      if (a.orig.ops.length) continue;
+      // text the editor could not locate in the page content (e.g. inside a form): cover it with the paper colour
+      const d = a.orig.poly.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(2) + ' ' + (-q[1]).toFixed(2)).join(' ') + ' Z';
+      pg.drawSvgPath(d, { x: 0, y: 0, color: hexRgb(a.orig.bg), borderColor: hexRgb(a.orig.bg), borderWidth: 0.6 });
+    }
+    for (const a of p.annots) {
+      if ('x1' in a) {
+        const x = Math.min(a.x1, a.x2), y = Math.min(a.y1, a.y2), w = Math.abs(a.x2 - a.x1), h = Math.abs(a.y2 - a.y1);
+        if (a.type === 'hl') pg.drawRectangle({ x, y, width: w, height: h, color: hexRgb(a.color), opacity: 0.42, blendMode: BlendMode.Multiply });
+        else if (a.type === 'white') pg.drawRectangle({ x, y, width: w, height: h, color: rgb(1, 1, 1) });
+        else pg.drawRectangle({ x, y, width: w, height: h, borderColor: hexRgb(a.color), borderWidth: a.size });
+      } else if (a.type === 'pen') {
+        const d = a.pts.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(2) + ' ' + (-q[1]).toFixed(2)).join(' ');
+        pg.drawSvgPath(d, { x: 0, y: 0, borderColor: hexRgb(a.color), borderWidth: a.size, borderLineCap: LineCapStyle.Round });
+      } else if (a.type === 'text' && a.font) {
+        const info = FONTR[a.font];
+        if (!info || !a.text) continue;
+        let emb = null;
+        if (info.data) {
+          if (!(a.font in embFonts)) { try { embFonts[a.font] = await out.embedFont(info.data, { subset: false }); } catch (e) { console.warn('No se pudo incrustar', info.name, e); embFonts[a.font] = null; } }
+          emb = embFonts[a.font];
+        }
+        const sf = stdFonts[info.std] || (stdFonts[info.std] = await out.embedFont(StandardFonts[info.std]));
+        const rad = a.rot * Math.PI / 180, dx = Math.cos(rad), dy = Math.sin(rad);
+        const color = hexRgb(a.color);
+        a.text.split('\n').forEach((ln, li) => {
+          let cur = 0;
+          for (const sg of segs(emb ? info : null, ln)) {
+            const f = sg.emb ? emb : sf;
+            const str = sg.emb ? sg.s : cleanFor(sf, sg.raw);
+            if (!str) continue;
+            const off = li * 1.2 * a.size;
+            pg.drawText(str, { x: a.x + dx * cur + dy * off, y: a.y + dy * cur - dx * off, size: a.size, font: f, color, rotate: degrees(a.rot) });
+            cur += f.widthOfTextAtSize(str, a.size);
+          }
+        });
+      } else if (a.type === 'text') {
+        pg.drawText(clean(a.text), { x: a.x, y: a.y, size: a.size, font, color: hexRgb(a.color), lineHeight: a.size * 1.2, rotate: degrees(a.rot) });
+      } else if (a.type === 'img') {
+        const im = S.imgs[a.img]; if (!im) continue;
+        if (!embedded[a.img]) embedded[a.img] = im.kind === 'jpg' ? await out.embedJpg(im.bytes) : await out.embedPng(im.bytes);
+        pg.drawImage(embedded[a.img], { x: a.x, y: a.y, width: a.w, height: a.h, rotate: degrees(a.rot) });
+      }
+    }
+  }
+  out.setProducer('Taller PDF'); out.setModificationDate(new Date());
+  return out.save();
+}
+const hasClaude = () => !!(window.claude && typeof window.claude.use === 'function');
+let dlPromise = hasClaude() ? window.claude.use('downloads').catch(() => null) : null;
+let dlUrl = null;
+function closeDl() { $('#dlBox').hidden = true; if (dlUrl) { const u = dlUrl; dlUrl = null; setTimeout(() => URL.revokeObjectURL(u), 1000); } }
+function offerFile(bytes, name) {
+  if (dlUrl) URL.revokeObjectURL(dlUrl);
+  dlUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const l = $('#dlLink'); l.href = dlUrl; l.download = name;
+  $('#dlOpen').href = dlUrl;
+  $('#dlName').textContent = name + ' · ' + (bytes.length / 1048576 < 0.1 ? Math.max(1, Math.round(bytes.length / 1024)) + ' KB' : (bytes.length / 1048576).toFixed(1) + ' MB') +
+    '. Si “Guardar PDF” no hace nada, usá “Abrir en otra pestaña” y guardalo desde ahí.';
+  $('#dlBox').hidden = false; l.focus();
+}
+$('#dlClose').onclick = closeDl;
+$('#dlBox').onclick = e => { if (e.target.id === 'dlBox') closeDl(); };
+$('#dlLink').onclick = () => setTimeout(() => toast('Descarga iniciada.'), 50);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#dlBox').hidden) closeDl(); });
+let saving = false;
+async function save() {
+  if (saving) return; commitEditor(); saving = true;
+  const btn = $('#bSave'); btn.disabled = true;
+  try {
+    const bytes = await buildPdf();
+    const name = S.name.replace(/\.pdf$/i, '').replace(/-editado$/, '') + '-editado.pdf';
+    if (!dlPromise && hasClaude()) dlPromise = window.claude.use('downloads').catch(() => null);
+    const dl = dlPromise ? await dlPromise : null;
+    if (dl) {
+      try { await dl.save({ filename: name, data: new Blob([bytes], { type: 'application/pdf' }) }); toast('PDF descargado: ' + name); return; }
+      catch (e) {
+        const c = e && e.code;
+        if (c === 'declined') { toast('Descarga cancelada.'); return; }
+        if (c === 'rate_limited') { toast('Ya hay una descarga pendiente. Probá de nuevo en unos segundos.'); return; }
+        console.warn('downloads.save', c, e && e.message);
+      }
+    }
+    offerFile(bytes, name);
+  } catch (e) {
+    console.error(e); toast('No se pudo generar el PDF. Algunos archivos protegidos no permiten edición.');
+  } finally { saving = false; btn.disabled = false; }
+}
+
+/* ---------- wiring ---------- */
+document.querySelectorAll('.tool').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+$('#bOpen').onclick = () => $('#fOpen').click();
+$('#bMerge').onclick = () => $('#fMerge').click();
+$('#bImg').onclick = () => $('#fImg').click();
+$('#bBlank').onclick = insertBlank;
+$('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
+$('#bSave').onclick = save;
+$('#bPages').onclick = () => $('#side').classList.toggle('open');
+const zoomTo = z => { commitEditor(); const ratio = desk.scrollTop / Math.max(1, desk.scrollHeight); S.zoom = clamp(z, 0.25, 4); renderAll(); desk.scrollTop = ratio * desk.scrollHeight; };
+$('#bZi').onclick = () => zoomTo(S.scale * 1.2);
+$('#bZo').onclick = () => zoomTo(S.scale / 1.2);
+$('#bFit').onclick = () => { S.zoom = 'fit'; renderAll(); };
+$('#fOpen').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) openBytes(new Uint8Array(await readFile(f)), f.name); };
+$('#fMerge').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) mergeBytes(new Uint8Array(await readFile(f))); };
+$('#fImg').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) addImageFile(f); };
+
+let dragDepth = 0;
+desk.addEventListener('dragenter', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); dragDepth++; $('#drop').hidden = false; } });
+desk.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+desk.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('#drop').hidden = true; } });
+desk.addEventListener('drop', async e => {
+  e.preventDefault(); dragDepth = 0; $('#drop').hidden = true;
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) openBytes(new Uint8Array(await readFile(f)), f.name);
+  else if (f.type.startsWith('image/')) addImageFile(f);
+  else toast('Ese tipo de archivo no se puede usar aquí.');
+});
+
+let scrollRaf = 0;
+desk.addEventListener('scroll', () => {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0;
+    const mid = desk.scrollTop + desk.clientHeight / 2; let best = 0, bd = Infinity;
+    S.pages.forEach((p, i) => { const r = RT[p.id]; if (!r) return; const c = r.wrap.offsetTop + r.wrap.offsetHeight / 2; const d = Math.abs(c - mid); if (d < bd) { bd = d; best = i; } });
+    setCur(best);
+  });
+});
+let rsT;
+window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { if (S.zoom === 'fit') renderAll(); else S.pages.forEach(drawAnnots); }, 150); });
+
+window.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'textarea' || (tag === 'input' && e.target.type !== 'range')) return;
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+  if (mod) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel) { e.preventDefault(); deleteSel(); return; }
+  if (e.key === 'Escape') { setSel(null); return; }
+  if (S.sel && e.key.startsWith('Arrow')) {
+    e.preventDefault(); const a = selAnn(); const p = pageById(S.sel.pid); const st = e.shiftKey ? 10 : 1;
+    const v = RT[p.id].vp; const [x0, y0] = v.convertToPdfPoint(0, 0);
+    const dir = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
+    const [x1, y1] = v.convertToPdfPoint(dir[0] * S.scale, dir[1] * S.scale);
+    const before = snap(); translateAnn(a, x1 - x0, y1 - y0); commit(before); drawAnnots(p); return;
+  }
+  const map = { e: 'edit', v: 'select', t: 'text', p: 'pen', h: 'hl', r: 'rect', w: 'white' };
+  const k = e.key.toLowerCase();
+  if (map[k]) setTool(map[k]); else if (k === 'i') $('#fImg').click();
+});
+
+/* ---------- example document (shown until the viewer opens their own PDF) ---------- */
+async function makeSample() {
+  const d = await PDFDocument.create();
+  const f = await d.embedFont(StandardFonts.Helvetica), fb = await d.embedFont(StandardFonts.HelveticaBold);
+  const ink = rgb(.11, .12, .15), grey = rgb(.38, .41, .47), red = rgb(.71, .14, .17), rule = rgb(.82, .84, .87);
+  const p1 = d.addPage([595.28, 841.89]);
+  p1.drawText('DOCUMENTO DE EJEMPLO  ·  abrí tu propio PDF con el botón Abrir', { x: 56, y: 800, size: 8.5, font: fb, color: red });
+  p1.drawText('Propuesta de servicios', { x: 56, y: 752, size: 26, font: fb, color: ink });
+  p1.drawText('Rediseño del sitio web  ·  Estudio Norte  ·  Noviembre 2026', { x: 56, y: 728, size: 11, font: f, color: grey });
+  p1.drawLine({ start: { x: 56, y: 712 }, end: { x: 539, y: 712 }, thickness: .8, color: rule });
+  const para = 'Esta propuesta describe el alcance, los plazos y el presupuesto para el rediseño completo del sitio institucional. El trabajo se divide en tres etapas: relevamiento, diseño y desarrollo. Cada etapa termina con una entrega revisada por el cliente antes de avanzar a la siguiente.';
+  p1.drawText(para, { x: 56, y: 686, size: 11, font: f, color: ink, maxWidth: 483, lineHeight: 16 });
+  p1.drawText('Alcance', { x: 56, y: 610, size: 14, font: fb, color: ink });
+  ['Auditoría del sitio actual y entrevistas con el equipo.', 'Arquitectura de contenidos y prototipo navegable.', 'Diseño visual de 12 plantillas de página.', 'Desarrollo, pruebas en dispositivos y puesta en línea.'].forEach((t, i) => {
+    p1.drawText('•  ' + t, { x: 64, y: 588 - i * 18, size: 11, font: f, color: ink });
+  });
+  p1.drawText('Presupuesto', { x: 56, y: 492, size: 14, font: fb, color: ink });
+  const rows = [['Relevamiento', '2 semanas', '$ 640.000'], ['Diseño', '4 semanas', '$ 1.480.000'], ['Desarrollo', '5 semanas', '$ 2.150.000']];
+  p1.drawText('Etapa', { x: 56, y: 468, size: 9, font: fb, color: grey }); p1.drawText('Duración', { x: 280, y: 468, size: 9, font: fb, color: grey }); p1.drawText('Importe', { x: 470, y: 468, size: 9, font: fb, color: grey });
+  rows.forEach((r, i) => {
+    const y = 446 - i * 24;
+    p1.drawLine({ start: { x: 56, y: y + 16 }, end: { x: 539, y: y + 16 }, thickness: .6, color: rule });
+    p1.drawText(r[0], { x: 56, y, size: 11, font: f, color: ink }); p1.drawText(r[1], { x: 280, y, size: 11, font: f, color: ink }); p1.drawText(r[2], { x: 539 - f.widthOfTextAtSize(r[2], 11), y, size: 11, font: f, color: ink });
+  });
+  p1.drawLine({ start: { x: 56, y: 390 }, end: { x: 539, y: 390 }, thickness: .8, color: ink });
+  p1.drawText('Total', { x: 56, y: 372, size: 11, font: fb, color: ink }); p1.drawText('$ 4.270.000', { x: 539 - fb.widthOfTextAtSize('$ 4.270.000', 11), y: 372, size: 11, font: fb, color: ink });
+  p1.drawText('Firma del cliente', { x: 56, y: 150, size: 9, font: f, color: grey });
+  p1.drawLine({ start: { x: 56, y: 166 }, end: { x: 260, y: 166 }, thickness: .8, color: ink });
+  p1.drawText('Aclaración y fecha', { x: 335, y: 150, size: 9, font: f, color: grey });
+  p1.drawLine({ start: { x: 335, y: 166 }, end: { x: 539, y: 166 }, thickness: .8, color: ink });
+  p1.drawText('1', { x: 294, y: 40, size: 9, font: f, color: grey });
+
+  const p2 = d.addPage([595.28, 841.89]);
+  p2.drawText('Condiciones', { x: 56, y: 760, size: 20, font: fb, color: ink });
+  const conds = ['Forma de pago: 40 % al firmar, 30 % al aprobar el diseño y 30 % contra entrega.', 'Validez de la propuesta: 30 días corridos desde la fecha de emisión.', 'Se incluyen dos rondas de correcciones por etapa. Las adicionales se cotizan aparte.', 'El hosting y el dominio quedan a cargo del cliente.', 'Garantía de 60 días sobre errores de funcionamiento posteriores a la puesta en línea.'];
+  conds.forEach((t, i) => { p2.drawText(`${i + 1}.`, { x: 56, y: 724 - i * 40, size: 11, font: fb, color: red }); p2.drawText(t, { x: 76, y: 724 - i * 40, size: 11, font: f, color: ink, maxWidth: 463, lineHeight: 15 }); });
+  p2.drawText('2', { x: 294, y: 40, size: 9, font: f, color: grey });
+  return d.save();
+}
+
+(async () => {
+  try {
+    const bytes = await makeSample();
+    await openBytes(new Uint8Array(bytes), 'propuesta-ejemplo.pdf');
+    const p = S.pages[0];
+    p.annots.push(
+      { id: nid(), type: 'hl', x1: 276, y1: 418, x2: 334, y2: 434, color: '#ffd43b' },
+      { id: nid(), type: 'text', x: 168, y: 503, rot: 0, text: '¿Se puede acortar\na 4 semanas?', color: '#b4232c', size: 11 },
+      { id: nid(), type: 'pen', pts: [[230, 482], [244, 468], [260, 452], [276, 438]], color: '#b4232c', size: 1.5 }
+    );
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    $('#loading').textContent = 'No se pudo preparar el editor. Recargá la página.';
+  }
+})();
+})();
+</script>
+
+</body></html>
