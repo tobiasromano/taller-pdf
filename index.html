@@ -139,6 +139,8 @@ textarea.ed {
   padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   white-space: nowrap; overflow: hidden;
 }
+.cleanopt { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--fg); cursor: pointer; flex-shrink: 0; }
+.cleanopt input { accent-color: var(--accent); margin: 0; }
 .status .file { color: var(--fg); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .toast {
   position: fixed; left: 50%; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
@@ -216,6 +218,9 @@ textarea.ed {
   <span class="file" id="sFile">—</span>
   <span id="sPage">—</span>
   <span class="opt" id="sSize">—</span>
+  <label class="cleanopt" title="Al descargar, borra del archivo el texto que no se ve: el original de lo que editaste, el que tapaste con «Tapar» y el texto oculto del PDF">
+    <input type="checkbox" id="cClean" checked> Quitar texto invisible
+  </label>
 </footer>
 
 <div class="toast" id="toast" hidden></div>
@@ -256,7 +261,7 @@ const S = {
   fontSize: 14, stroke: 2.5,
   zoom: 'fit', scale: 1,
   sel: null, name: 'propuesta-ejemplo.pdf',
-  undo: [], redo: [], cur: 0
+  undo: [], redo: [], cur: 0, clean: true
 };
 const RT = {};
 const SWATCHES = ['#1b1f27', '#b4232c', '#1f3fa8', '#17803d', '#ffd43b', '#ff8fc7', '#7cd3ff'];
@@ -550,13 +555,18 @@ function analyze(doc, page, std) {
     else for (const code of arr) adv += m.w(code) * G.fs + G.tc + (code === 32 ? G.tw : 0);
     return adv * G.th;
   };
-  const adv = tx => { tm = mul([1, 0, 0, 1, tx, 0], tm); };
-  const show = (o, at, end, kind) => {
+  let acc = 0;
+  const adv = tx => { acc += tx; tm = mul([1, 0, 0, 1, tx, 0], tm); };
+  const show = (o, at, end, kind, op, extra) => {
+    acc = 0;
+    const strs = kind === 'TJ' ? (((o[o.length - 1] || {}).v) || []).filter(el => el.t === 's') : [o[o.length - 1]].filter(el => el && el.t === 's');
+    const glyphs = strs.reduce((n, el) => n + el.v.length, 0);
     const M = mul(tm, G.ctm); const s = apply(M, [0, G.rise]);
     if (kind === 'TJ') { const arr = o[o.length - 1]; for (const el of (arr && arr.v) || []) { if (el.t === 's') adv(strAdv(el.v)); else if (el.t === '#') adv(-el.v / 1000 * G.fs * G.th); } }
     else { const sv = o[o.length - 1]; if (sv && sv.t === 's') adv(strAdv(sv.v)); }
     const e = apply(mul(tm, G.ctm), [0, G.rise]);
-    ops.push({ s, e, h: Math.abs(G.fs) * Math.hypot(M[2], M[3]), at, end, tr: G.tr });
+    if (!glyphs) return;
+    ops.push({ s, e, h: Math.abs(G.fs) * Math.hypot(M[2], M[3]), at, end, tr: G.tr, op, adv: acc, fs: G.fs, th: G.th, extra });
   };
   const newLine = (tx, ty) => { tlm = mul([1, 0, 0, 1, tx, ty], tlm); tm = tlm.slice(); };
   tokenize(bytes, (op, o, at, end) => {
@@ -577,24 +587,34 @@ function analyze(doc, page, std) {
       case 'TD': G.tl = -num(1); newLine(num(0), num(1)); break;
       case 'Tm': if (o.length >= 6) { tlm = o.slice(-6).map(x => x.v || 0); tm = tlm.slice(); } break;
       case 'T*': newLine(0, -G.tl); break;
-      case 'Tj': show(o, at, end, 'Tj'); break;
-      case 'TJ': show(o, at, end, 'TJ'); break;
-      case "'": newLine(0, -G.tl); show(o, at, end, 'Tj'); break;
-      case '"': G.tw = num(0); G.tc = num(1); newLine(0, -G.tl); show(o, at, end, 'Tj'); break;
+      case 'Tj': show(o, at, end, 'Tj', 'Tj'); break;
+      case 'TJ': show(o, at, end, 'TJ', 'TJ'); break;
+      case "'": newLine(0, -G.tl); show(o, at, end, 'Tj', "'"); break;
+      case '"': G.tw = num(0); G.tc = num(1); newLine(0, -G.tl); show(o, at, end, 'Tj', '"', [num(0), num(1)]); break;
     }
   });
   return { bytes, ops };
 }
-function hideOps(bytes, list) {
+const fmtN = v => (Math.abs(v) < 1e-6 ? 0 : +v.toFixed(4)).toString();
+function moveOnly(op) {
+  const pre = op.op === "'" ? 'T* ' : op.op === '"' ? `${fmtN(op.extra[0])} Tw ${fmtN(op.extra[1])} Tc T* ` : '';
+  const k = op.fs * op.th;
+  return ' ' + pre + (k && op.adv ? `[${fmtN(-op.adv * 1000 / k)}] TJ ` : '');
+}
+function hideOps(bytes, list, remove = []) {
   const ins = [];
-  const seen = new Set();
-  for (const op of list) {
+  const gone = new Set(remove.map(op => op.at)), seen = new Set();
+  for (const op of remove) {
     if (seen.has(op.at)) continue; seen.add(op.at);
+    ins.push({ pos: op.at, cut: op.end, k: 1, s: moveOnly(op) });
+  }
+  for (const op of list) {
+    if (seen.has(op.at) || gone.has(op.at)) continue; seen.add(op.at);
     ins.push({ pos: op.at, k: 1, s: ` ${op.tr >= 4 ? 7 : 3} Tr ` }, { pos: op.end, k: 0, s: ` ${op.tr} Tr ` });
   }
   ins.sort((a, b) => a.pos - b.pos || a.k - b.k);
   const enc = new TextEncoder(); const chunks = []; let last = 0;
-  for (const x of ins) { chunks.push(bytes.subarray(last, x.pos), enc.encode(x.s)); last = x.pos; }
+  for (const x of ins) { if (x.pos < last) continue; chunks.push(bytes.subarray(last, x.pos), enc.encode(x.s)); last = x.cut || x.pos; }
   chunks.push(bytes.subarray(last));
   const out = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0)); let o = 0;
   for (const c of chunks) { out.set(c, o); o += c.length; }
@@ -1199,7 +1219,20 @@ $('#props').addEventListener('mousedown', e => { if (e.target.closest('button'))
 window.addEventListener('pointerup', () => setTimeout(() => propsPointer = false, 0), true);
 
 /* ---------- export ---------- */
+function invisibleOps(p, ops) {
+  const boxes = p.annots.filter(a => a.type === 'white').map(a => [Math.min(a.x1, a.x2) - 1, Math.min(a.y1, a.y2) - 1, Math.max(a.x1, a.x2) + 1, Math.max(a.y1, a.y2) + 1]);
+  const inside = q => boxes.some(b => q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3]);
+  return ops.filter(o => {
+    if (o.tr === 3) return true;
+    if (!boxes.length) return false;
+    const dx = o.e[0] - o.s[0], dy = o.e[1] - o.s[1], L = Math.hypot(dx, dy) || 1;
+    const up = [-dy / L * o.h * 0.7, dx / L * o.h * 0.7];
+    return [o.s, o.e, [o.s[0] + up[0], o.s[1] + up[1]], [o.e[0] + up[0], o.e[1] + up[1]]].every(inside);
+  });
+}
+let removed = 0;
 async function buildPdf() {
+  removed = 0;
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.Helvetica);
   if (window.fontkit) out.registerFontkit(fontkit);
@@ -1219,10 +1252,13 @@ async function buildPdf() {
     // original words that were edited: made invisible in place (text render mode 3), keeping every other glyph where it was
     const edited = p.annots.filter(a => a.orig);
     const hidden = edited.flatMap(a => a.orig.ops);
-    if (hidden.length) {
-      const an = await pageOps(p);
-      if (an) {
-        const ref = out.context.register(out.context.flateStream(hideOps(an.bytes, hidden)));
+    const an = (hidden.length || S.clean) ? await pageOps(p) : null;
+    if (an) {
+      // clean mode: the original of every edit, text under «Tapar» boxes and text drawn invisibly are deleted from the file
+      const remove = S.clean ? [...hidden, ...invisibleOps(p, an.ops)] : [];
+      if (remove.length || hidden.length) {
+        removed += new Set(remove.map(o => o.at)).size;
+        const ref = out.context.register(out.context.flateStream(hideOps(an.bytes, S.clean ? [] : hidden, remove)));
         pg.node.set(PDFName.of('Contents'), out.context.obj([ref]));
       }
     }
@@ -1292,6 +1328,7 @@ $('#dlClose').onclick = closeDl;
 $('#dlBox').onclick = e => { if (e.target.id === 'dlBox') closeDl(); };
 $('#dlLink').onclick = () => setTimeout(() => toast('Descarga iniciada.'), 50);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#dlBox').hidden) closeDl(); });
+const cleanNote = () => removed ? ` · se borraron ${removed} fragmento${removed > 1 ? 's' : ''} de texto invisible` : '';
 let saving = false;
 async function save() {
   if (saving) return; commitEditor(); saving = true;
@@ -1302,7 +1339,7 @@ async function save() {
     if (!dlPromise && hasClaude()) dlPromise = window.claude.use('downloads').catch(() => null);
     const dl = dlPromise ? await dlPromise : null;
     if (dl) {
-      try { await dl.save({ filename: name, data: new Blob([bytes], { type: 'application/pdf' }) }); toast('PDF descargado: ' + name); return; }
+      try { await dl.save({ filename: name, data: new Blob([bytes], { type: 'application/pdf' }) }); toast('PDF descargado: ' + name + cleanNote()); return; }
       catch (e) {
         const c = e && e.code;
         if (c === 'declined') { toast('Descarga cancelada.'); return; }
@@ -1310,7 +1347,7 @@ async function save() {
         console.warn('downloads.save', c, e && e.message);
       }
     }
-    offerFile(bytes, name);
+    offerFile(bytes, name); if (removed) toast(cleanNote().replace(/^ · /, ''));
   } catch (e) {
     console.error(e); toast('No se pudo generar el PDF. Algunos archivos protegidos no permiten edición.');
   } finally { saving = false; btn.disabled = false; }
@@ -1324,6 +1361,7 @@ $('#bImg').onclick = () => $('#fImg').click();
 $('#bBlank').onclick = insertBlank;
 $('#bUndo').onclick = undo; $('#bRedo').onclick = redo;
 $('#bSave').onclick = save;
+$('#cClean').onchange = e => { S.clean = e.target.checked; };
 $('#bPages').onclick = () => $('#side').classList.toggle('open');
 const zoomTo = z => { commitEditor(); const ratio = desk.scrollTop / Math.max(1, desk.scrollHeight); S.zoom = clamp(z, 0.25, 4); renderAll(); desk.scrollTop = ratio * desk.scrollHeight; };
 $('#bZi').onclick = () => zoomTo(S.scale * 1.2);
